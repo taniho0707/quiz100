@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Screen</title>
+    <link rel="stylesheet" href="/css/screen.css">
+</head>
+<body>
+    <div class="screen-container">
+        <header class="screen-header">
+            <h1 id="event-title">クイズ大会</h1>
+            <div class="status-bar">
+                <span id="question-status">開始をお待ちください</span>
+                <span id="participant-count">参加者: 0人</span>
+            </div>
+        </header>
+
+        <main class="screen-content">
+            <div id="waiting-screen" class="screen-section">
+                <div class="waiting-message">
+                    <h2>🎉 参加者をお待ちしています</h2>
+                    <p>スマートフォンでQRコードを読み取るか、URLにアクセスしてください</p>
+                    <div class="qr-placeholder">
+                        <p>QRコード表示エリア</p>
+                        <p>URL: <span id="join-url">http://localhost:8080</span></p>
+                    </div>
+                </div>
+                
+                <div class="participants-preview">
+                    <h3>👥 参加者一覧</h3>
+                    <div id="participants-grid" class="participants-grid">
+                        <!-- 参加者がここに表示されます -->
+                    </div>
+                </div>
+            </div>
+
+            <div id="question-screen" class="screen-section hidden">
+                <div class="question-header">
+                    <span class="question-number">Q<span id="current-question-num">1</span></span>
+                    <span class="question-total">/ <span id="total-questions">5</span></span>
+                </div>
+                
+                <div class="question-content">
+                    <h2 id="question-text">問題文がここに表示されます</h2>
+                    <img id="question-image" class="question-image hidden" src="" alt="問題画像">
+                </div>
+                
+                <div class="choices-display" id="choices-display">
+                    <!-- 選択肢がここに表示されます -->
+                </div>
+
+                <div class="answer-stats" id="answer-stats">
+                    <h3>📊 回答状況</h3>
+                    <div id="answer-progress" class="answer-progress">
+                        <div class="progress-bar">
+                            <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <span id="answer-count">0 / 0 回答済み</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="results-screen" class="screen-section hidden">
+                <h2>🏆 最終結果</h2>
+                <div id="rankings-display" class="rankings-display">
+                    <!-- ランキングがここに表示されます -->
+                </div>
+            </div>
+        </main>
+
+        <div id="emoji-reactions" class="emoji-reactions">
+            <!-- 絵文字リアクションがここに表示されます -->
+        </div>
+
+        <footer class="screen-footer">
+            <div id="connection-status" class="connection-status">
+                <span id="connection-text">接続中...</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="/js/screen.js"></script>
+</body>
+</html>

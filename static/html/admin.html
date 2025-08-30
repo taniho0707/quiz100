@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Admin</title>
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>🎮 クイズ管理システム</h1>
+            <div id="connection-status" class="status-indicator">
+                <span id="connection-text">接続中...</span>
+            </div>
+        </header>
+
+        <div class="admin-content">
+            <div class="control-panel">
+                <h2>🎯 イベント制御</h2>
+                <div class="control-buttons">
+                    <button id="start-btn" class="btn btn-success">イベント開始</button>
+                    <button id="create-teams-btn" class="btn btn-info" style="display:none;">チーム分け</button>
+                    <button id="next-btn" class="btn btn-primary" disabled>次の問題</button>
+                    <button id="alert-btn" class="btn btn-warning" disabled>⏰ 残り5秒アラート</button>
+                    <button id="stop-btn" class="btn btn-danger" disabled>イベント終了</button>
+                </div>
+                
+                <div class="event-status">
+                    <h3>📊 イベント状況</h3>
+                    <p>状態: <span id="event-status">待機中</span></p>
+                    <p>現在の問題: <span id="current-question">-</span> / <span id="total-questions">-</span></p>
+                </div>
+            </div>
+
+            <div class="participants-panel">
+                <h2>👥 参加者一覧 (<span id="participant-count">0</span>人)</h2>
+                <div id="participants-list" class="participants-list">
+                    <!-- 参加者リストがここに動的に挿入されます -->
+                </div>
+            </div>
+
+            <div id="teams-container" class="teams-panel" style="display:none;">
+                <h2>🏆 チーム一覧</h2>
+                <div id="teams-list" class="teams-list">
+                    <p>チームが作成されていません</p>
+                </div>
+            </div>
+
+            <div class="question-panel">
+                <h2>❓ 現在の問題</h2>
+                <div id="current-question-display" class="question-display">
+                    <p>問題が開始されていません</p>
+                </div>
+            </div>
+
+            <div class="answers-panel">
+                <h2>📝 回答状況</h2>
+                <div id="answers-display" class="answers-display">
+                    <p>問題が開始されていません</p>
+                </div>
+            </div>
+
+            <div class="log-panel">
+                <h2>📋 ログ</h2>
+                <div id="log-display" class="log-display">
+                    <p>システムが起動しました</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/admin.js"></script>
+</body>
+</html>

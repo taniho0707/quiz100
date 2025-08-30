@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  quiz100:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      # Environment variables are loaded from .env file automatically
+      # Format: ${VARIABLE_NAME:-default_value}
+      # Multiple authentication methods supported
+      - QUIZ_ADMIN_MAC_ADDR=${QUIZ_ADMIN_MAC_ADDR:-00:00:00:00:00:00}
+      - QUIZ_ADMIN_IP_ADDR=${QUIZ_ADMIN_IP_ADDR:-127.0.0.1}
+      - QUIZ_ADMIN_TOKEN=${QUIZ_ADMIN_TOKEN:-}
+    volumes:
+      - ./config:/root/config
+      - ./static:/root/static
+      - ./logs:/root/logs
+      - ./database:/root/database
+    restart: unless-stopped
+    networks:
+      - quiz-network
+
+networks:
+  quiz-network:
+    driver: bridge

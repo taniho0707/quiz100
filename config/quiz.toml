@@ -1,0 +1,42 @@
+[event]
+title = "新年会クイズ大会"
+team_mode = true
+team_size = 5
+
+[team_separation]
+avoid_groups = ["田中", "山田", "やまだ", "ヤマダ"]
+
+[[questions]]
+type = "text"
+text = "Goの作者の1人として知られているのは誰ですか？"
+image = ""
+choices = ["Rob Pike", "Linus Torvalds", "Dennis Ritchie", "Ken Thompson"]
+correct = 1
+
+[[questions]]
+type = "text"
+text = "HTTPSのデフォルトポートは？"
+image = ""
+choices = ["80", "443", "8080", "3000"]
+correct = 2
+
+[[questions]]
+type = "text"
+text = "SQLiteはどのような種類のデータベースですか？"
+image = ""
+choices = ["リレーショナルデータベース", "NoSQLデータベース", "グラフデータベース", "列指向データベース"]
+correct = 1
+
+[[questions]]
+type = "text"
+text = "WebSocketは何のためのプロトコルですか？"
+image = ""
+choices = ["ファイル転送", "メール送信", "リアルタイム通信", "データ暗号化"]
+correct = 3
+
+[[questions]]
+type = "text"
+text = "TOMLファイルの拡張子は？"
+image = ""
+choices = [".txt", ".toml", ".json", ".xml"]
+correct = 2

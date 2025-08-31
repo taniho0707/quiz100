@@ -43,6 +43,7 @@
 - スマートフォンブラウザからの参加
 - ニックネーム登録
 - Cookieによるセッション管理 (一度切断されても同じユーザーで再接続可能)
+- セッション破棄機能（確認ダイアログ付き、誤操作防止UI）
 - 問題表示と回答選択
 - リアルタイム結果表示
 - 絵文字ボタンがあり、押すとスクリーン表示用画面に表示される
@@ -135,6 +136,7 @@ correct = 1
 - `GET /` - 参加者用ページ
 - `POST /api/join` - 参加者登録
 - `POST /api/answer` - 回答送信
+- `POST /api/reset-session` - セッション破棄
 - `GET /admin` - 管理者用ページ
 - `POST /api/admin/start` - イベント開始
 - `POST /api/admin/next` - 次の問題へ
@@ -143,6 +145,7 @@ correct = 1
 
 ### 7.2 WebSocket メッセージ
 - `user_joined` - 参加者参加通知
+- `user_left` - 参加者離脱通知（セッション破棄時）
 - `question_start` - 問題開始
 - `question_end` - 回答締切
 - `results` - 結果表示
@@ -168,3 +171,81 @@ correct = 1
 - 単一サーバー・単一イベント制限
 - ネットワーク環境に依存するリアルタイム性
 - ブラウザ互換性（主要モバイルブラウザ対応）
+
+# 🆕 最新実装機能
+
+## セッション破棄機能 ✅ 実装完了（2025/8/30）
+
+### 機能概要
+ユーザーが自分のセッション（回答履歴）を破棄し、再度参加登録できる機能を実装。誤操作を防ぐため、確認ダイアログと控えめなUI設計を採用。
+
+### 実装詳細
+- **フロントエンド**:
+  - 画面右上に小さな「リセット」ボタンを配置（半透明、枠外）
+  - 確認モーダル：「これまでの回答状況が消去されます。本当に破棄しますか？」
+  - セッション破棄後は参加登録画面に自動遷移
+
+- **バックエンド**:
+  - `/api/reset-session` APIエンドポイント追加
+  - データベースから関連データを完全削除（回答、絵文字リアクション、ユーザー情報）
+  - WebSocketでの管理画面・スクリーン表示への通知（`user_left`メッセージ）
+  - ログ出力機能（`LogUserSessionReset`）
+
+### UI/UX設計
+- **誤操作防止**: 画面右上固定位置、小サイズ（11px フォント）、半透明
+- **確認プロセス**: 2段階確認（ボタンクリック → モーダル確認）
+- **視覚的フィードバック**: 危険色（赤）での警告表示
+
+## 5秒カウントダウンシステム ✅ 実装完了（2025/8/31）
+
+### 機能概要
+管理者が「⏰ 残り5秒アラート」ボタンを押すことで、スクリーン表示画面に視覚的なカウントダウンを表示し、回答時間の終了を効果的に演出する機能。
+
+### 実装詳細
+
+#### バックエンド
+- **handlers/handlers.go**: `AdminAlert`エンドポイントを更新
+  - `time_alert`から`countdown`メッセージシステムに変更
+  - `startCountdown()`関数で5秒から1秒まで順次配信
+  - スクリーン専用配信（`BroadcastToType`使用）
+  - カウントダウン終了後に全クライアントに`question_end`送信
+
+#### フロントエンド（スクリーン表示）
+- **screen.html**:
+  - 大きな数字表示エリア（`countdown-number-display`）
+  - 全画面「終了！」表示エリア（`time-up-display`）
+  - 画面端の強調枠エリア（`countdown-border`）
+
+- **screen.css**:
+  - カウントダウン数字: 12rem（モバイル8rem）、パルスアニメーション
+  - 赤いグラデーション枠: 画面端20px幅、パルス効果付き
+  - 「終了！」表示: 全画面背景、10rem文字サイズ
+
+- **screen.js**:
+  - `showCountdown()`: 5-1秒の数字と赤枠を同時表示
+  - `showTimeUp()`: 3秒間の全画面「終了！」表示
+  - `hideCountdown()`: カウントダウン要素の非表示処理
+
+#### フロントエンド（参加者画面）
+- **participant.js**: `countdown`メッセージ処理を削除
+- 参加者画面では一切の表示を行わない（要求仕様通り）
+
+### 動作フロー
+1. 管理者が「⏰ 残り5秒アラート」ボタンをクリック
+2. サーバーがゴルーチンで5秒カウントダウンを開始
+3. スクリーン画面のみに1秒間隔で数字表示（5→4→3→2→1）
+4. カウントダウン中は画面端に赤いグラデーション枠を表示
+5. カウントダウン終了後、全画面に「終了！」を3秒間表示
+6. 全クライアントに`question_end`送信で回答受付を停止
+
+### UI/UX設計
+- **視覚的インパクト**: 大きな数字（12rem）とパルスアニメーション
+- **画面強調**: 赤いグラデーション枠による緊迫感演出
+- **情報階層**: スクリーンのみ表示、参加者は回答に集中
+- **時間管理**: 正確な1秒間隔での数字更新
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"runtime"
@@ -104,10 +105,21 @@ func (h *Handler) Join(c *gin.Context) {
 	}
 
 	var user *models.User
+	var assignedTeam *models.Team
+
+	// Check if this is a session rejoin attempt
+	isRejoinAttempt := req.Nickname == "Rejoining..."
+
 	if existingUser != nil {
 		user = existingUser
 		h.logger.LogUserReconnect(user.Nickname, sessionID)
 	} else {
+		// If this is a rejoin attempt but no existing user found, return error
+		if isRejoinAttempt {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired or not found"})
+			return
+		}
+
 		user, err = h.userRepo.CreateUser(sessionID, req.Nickname)
 		if err != nil {
 			h.logger.LogError("creating user", err)
@@ -115,6 +127,21 @@ func (h *Handler) Join(c *gin.Context) {
 			return
 		}
 		h.logger.LogUserJoin(req.Nickname, sessionID)
+
+		// Check if teams exist and team mode is enabled for automatic team assignment
+		if h.config.Event.TeamMode {
+			existingTeams, err := h.teamRepo.GetAllTeamsWithMembers()
+			if err == nil && len(existingTeams) > 0 {
+				// Teams exist, assign new user to available team
+				assignedTeam, err = h.teamAssignmentSvc.AssignUserToAvailableTeam(user.ID, user.Nickname)
+				if err != nil {
+					h.logger.LogError("auto-assigning user to team", err)
+					// Continue without team assignment on error
+				} else if assignedTeam != nil {
+					h.logger.LogUserJoin(fmt.Sprintf("%s (assigned to %s)", req.Nickname, assignedTeam.Name), sessionID)
+				}
+			}
+		}
 	}
 
 	err = h.userRepo.UpdateUserConnection(sessionID, true)
@@ -125,8 +152,9 @@ func (h *Handler) Join(c *gin.Context) {
 	message := websocket.Message{
 		Type: "user_joined",
 		Data: gin.H{
-			"user":     user,
-			"nickname": user.Nickname,
+			"user":          user,
+			"nickname":      user.Nickname,
+			"assigned_team": assignedTeam,
 		},
 	}
 
@@ -134,9 +162,24 @@ func (h *Handler) Join(c *gin.Context) {
 	h.hub.BroadcastToType(messageBytes, websocket.ClientTypeAdmin)
 	h.hub.BroadcastToType(messageBytes, websocket.ClientTypeScreen)
 
+	// If user was assigned to a team, also send team update message
+	if assignedTeam != nil {
+		teamMessage := websocket.Message{
+			Type: "team_member_added",
+			Data: gin.H{
+				"team": assignedTeam,
+				"user": user,
+			},
+		}
+		teamMessageBytes, _ := json.Marshal(teamMessage)
+		h.hub.BroadcastToType(teamMessageBytes, websocket.ClientTypeAdmin)
+		h.hub.BroadcastToType(teamMessageBytes, websocket.ClientTypeScreen)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"user":       user,
-		"session_id": sessionID,
+		"user":          user,
+		"session_id":    sessionID,
+		"assigned_team": assignedTeam,
 	})
 }
 
@@ -271,6 +314,63 @@ func (h *Handler) SendEmoji(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "sent"})
 }
 
+func (h *Handler) ResetSession(c *gin.Context) {
+	sessionID := c.GetHeader("X-Session-ID")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID required"})
+		return
+	}
+
+	user, err := h.userRepo.GetUserBySessionID(sessionID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Delete user's answers
+	err = h.answerRepo.DeleteAnswersByUserID(user.ID)
+	if err != nil {
+		h.logger.LogError("deleting user answers", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user answers"})
+		return
+	}
+
+	// Delete user's emoji reactions
+	err = h.emojiReactionRepo.DeleteReactionsByUserID(user.ID)
+	if err != nil {
+		h.logger.LogError("deleting user emoji reactions", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user reactions"})
+		return
+	}
+
+	// Delete user record
+	err = h.userRepo.DeleteUserBySessionID(sessionID)
+	if err != nil {
+		h.logger.LogError("deleting user", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
+		return
+	}
+
+	h.logger.LogUserSessionReset(user.Nickname, sessionID)
+
+	// Notify admin and screen about user leaving
+	message := websocket.Message{
+		Type: "user_left",
+		Data: gin.H{
+			"user_id":  user.ID,
+			"nickname": user.Nickname,
+		},
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.BroadcastToType(messageBytes, websocket.ClientTypeAdmin)
+	h.hub.BroadcastToType(messageBytes, websocket.ClientTypeScreen)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "Session reset successfully",
+	})
+}
+
 func (h *Handler) AdminStart(c *gin.Context) {
 	if h.currentEvent != nil && h.currentEvent.Status == "started" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Event already started"})
@@ -361,20 +461,41 @@ func (h *Handler) AdminAlert(c *gin.Context) {
 		return
 	}
 
-	h.logger.LogAlert("5秒アラート発動")
+	h.logger.LogAlert("5秒カウントダウン開始")
 
-	message := websocket.Message{
-		Type: "time_alert",
+	// Start countdown from 5 seconds
+	go h.startCountdown()
+
+	c.JSON(http.StatusOK, gin.H{"status": "countdown started"})
+}
+
+func (h *Handler) startCountdown() {
+	for i := 5; i >= 1; i-- {
+		message := websocket.Message{
+			Type: "countdown",
+			Data: gin.H{
+				"seconds_left": i,
+			},
+		}
+
+		// Send only to screen clients
+		messageBytes, _ := json.Marshal(message)
+		h.hub.BroadcastToType(messageBytes, websocket.ClientTypeScreen)
+
+		// Wait 1 second
+		time.Sleep(1 * time.Second)
+	}
+
+	// Send question_end message to all clients after countdown
+	endMessage := websocket.Message{
+		Type: "question_end",
 		Data: gin.H{
-			"message": "残り時間5秒！",
-			"seconds": 5,
+			"message": "Time's up!",
 		},
 	}
 
-	messageBytes, _ := json.Marshal(message)
-	h.hub.Broadcast <- messageBytes
-
-	c.JSON(http.StatusOK, gin.H{"status": "alert sent"})
+	endMessageBytes, _ := json.Marshal(endMessage)
+	h.hub.Broadcast <- endMessageBytes
 }
 
 func (h *Handler) AdminStop(c *gin.Context) {
@@ -452,7 +573,12 @@ func (h *Handler) GetStatus(c *gin.Context) {
 		"users":         users,
 		"teams":         teams,
 		"client_counts": clientCounts,
-		"config":        h.config.Event,
+		"config": gin.H{
+			"team_mode": h.config.Event.TeamMode,
+			"team_size": h.config.Event.TeamSize,
+			"title":     h.config.Event.Title,
+			"questions": h.config.Questions,
+		},
 	})
 }
 

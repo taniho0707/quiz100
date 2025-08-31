@@ -1,7 +1,7 @@
 [event]
 title = "新年会クイズ大会"
 team_mode = true
-team_size = 5
+team_size = 2
 
 [team_separation]
 avoid_groups = ["田中", "山田", "やまだ", "ヤマダ"]

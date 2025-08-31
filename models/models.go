@@ -436,3 +436,21 @@ func (r *UserRepository) GetUsersWithoutTeam() ([]User, error) {
 
 	return users, nil
 }
+
+func (r *UserRepository) DeleteUserBySessionID(sessionID string) error {
+	query := `DELETE FROM users WHERE session_id = ?`
+	_, err := r.db.Exec(query, sessionID)
+	return err
+}
+
+func (r *AnswerRepository) DeleteAnswersByUserID(userID int) error {
+	query := `DELETE FROM answers WHERE user_id = ?`
+	_, err := r.db.Exec(query, userID)
+	return err
+}
+
+func (r *EmojiReactionRepository) DeleteReactionsByUserID(userID int) error {
+	query := `DELETE FROM emoji_reactions WHERE user_id = ?`
+	_, err := r.db.Exec(query, userID)
+	return err
+}

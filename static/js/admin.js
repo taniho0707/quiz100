@@ -107,13 +107,21 @@ class QuizAdmin {
                 this.handleFinalResults(message.data);
                 break;
                 
+            case 'team_member_added':
+                this.handleTeamMemberAdded(message.data);
+                break;
+                
             default:
                 console.log('Unknown message type:', message.type);
         }
     }
 
     handleUserJoined(data) {
-        this.addLog(`${data.nickname} が参加しました`, 'info');
+        if (data.assigned_team) {
+            this.addLog(`${data.nickname} が参加しました (${data.assigned_team.name}に配置)`, 'info');
+        } else {
+            this.addLog(`${data.nickname} が参加しました`, 'info');
+        }
         this.loadStatus();
     }
 
@@ -560,6 +568,15 @@ class QuizAdmin {
                 </div>
             `).join('')}
         `;
+    }
+    
+    handleTeamMemberAdded(data) {
+        // Update the team in our local storage
+        if (data.team) {
+            this.teams.set(data.team.id, data.team);
+            this.updateTeamsDisplay();
+            this.addLog(`${data.user.nickname} が ${data.team.name} に自動配置されました`, 'success');
+        }
     }
 
     addLog(message, type = 'info') {

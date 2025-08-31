@@ -357,3 +357,117 @@ body {
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     }
 }
+
+/* Countdown Display Styles */
+.countdown-number-display {
+    position: fixed;
+    top: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12rem;
+    font-weight: 900;
+    color: #ff5722;
+    text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.8);
+    z-index: 5000;
+    text-align: center;
+    animation: countdownPulse 1s ease-in-out;
+}
+
+.countdown-number-display.hidden {
+    display: none;
+}
+
+.countdown-border {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 4000;
+    border: 20px solid transparent;
+    border-image: linear-gradient(45deg, 
+        #ff1744, #ff5722, #ff9800, #ff5722, #ff1744,
+        #d32f2f, #f44336, #ff5722, #f44336, #d32f2f
+    ) 1;
+    animation: borderPulse 1s ease-in-out infinite alternate;
+}
+
+.countdown-border.hidden {
+    display: none;
+}
+
+.time-up-display {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(244, 67, 54, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 15000;
+    backdrop-filter: blur(10px);
+    animation: timeUpFlash 0.5s ease-in-out 3;
+}
+
+.time-up-display.hidden {
+    display: none;
+}
+
+.time-up-text {
+    font-size: 10rem;
+    font-weight: 900;
+    color: white;
+    text-shadow: 6px 6px 12px rgba(0, 0, 0, 0.8);
+    text-align: center;
+}
+
+@keyframes countdownPulse {
+    0% { 
+        transform: translateX(-50%) scale(1);
+        color: #ff5722;
+        text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.8);
+    }
+    100% { 
+        transform: translateX(-50%) scale(1.1);
+        color: #ff1744;
+        text-shadow: 6px 6px 12px rgba(255, 23, 68, 0.8);
+    }
+}
+
+@keyframes borderPulse {
+    0% {
+        border-width: 20px;
+        opacity: 0.8;
+    }
+    100% {
+        border-width: 25px;
+        opacity: 1;
+    }
+}
+
+@keyframes timeUpFlash {
+    0%, 100% { 
+        background: rgba(244, 67, 54, 0.95);
+    }
+    50% { 
+        background: rgba(255, 193, 7, 0.95);
+    }
+}
+
+@media (max-width: 768px) {
+    .countdown-number-display {
+        font-size: 8rem;
+        top: 15%;
+    }
+    
+    .countdown-border {
+        border-width: 15px;
+    }
+    
+    .time-up-text {
+        font-size: 6rem;
+    }
+}

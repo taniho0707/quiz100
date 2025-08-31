@@ -5,9 +5,12 @@ class QuizParticipant {
         this.user = null;
         this.currentQuestion = null;
         this.answered = false;
+        this.lastTouchEnd = 0;
+        this.answersBlocked = false;
 
         this.initializeElements();
         this.setupEventListeners();
+        this.preventZoom();
         
         if (this.sessionID) {
             this.rejoinSession();
@@ -18,6 +21,11 @@ class QuizParticipant {
         this.elements = {
             connectionStatus: document.getElementById('connection-status'),
             connectionText: document.getElementById('connection-text'),
+            
+            resetSessionBtn: document.getElementById('reset-session-btn'),
+            resetModal: document.getElementById('reset-modal'),
+            resetCancelBtn: document.getElementById('reset-cancel-btn'),
+            resetConfirmBtn: document.getElementById('reset-confirm-btn'),
             
             joinSection: document.getElementById('join-section'),
             nickname: document.getElementById('nickname'),
@@ -53,11 +61,38 @@ class QuizParticipant {
         });
 
         this.elements.emojiButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 const emoji = btn.dataset.emoji;
                 this.sendEmoji(emoji);
                 this.animateEmojiButton(btn);
             });
+            
+            // Touch feedback for mobile
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                btn.style.transform = 'scale(0.95)';
+            }, { passive: false });
+            
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                btn.style.transform = 'scale(1)';
+                const emoji = btn.dataset.emoji;
+                this.sendEmoji(emoji);
+                this.animateEmojiButton(btn);
+            }, { passive: false });
+        });
+
+        // セッション破棄関連のイベントリスナー
+        this.elements.resetSessionBtn.addEventListener('click', () => this.showResetModal());
+        this.elements.resetCancelBtn.addEventListener('click', () => this.hideResetModal());
+        this.elements.resetConfirmBtn.addEventListener('click', () => this.resetSession());
+        
+        // モーダルのオーバーレイクリックで閉じる
+        this.elements.resetModal.addEventListener('click', (e) => {
+            if (e.target === this.elements.resetModal) {
+                this.hideResetModal();
+            }
         });
     }
 
@@ -105,10 +140,10 @@ class QuizParticipant {
                 
             case 'question_end':
                 this.disableChoices();
+                this.blockAnswers();
                 break;
                 
-            case 'time_alert':
-                this.showTimeAlert(message.data);
+            case 'time_alert': // FIXME: 消したい
                 break;
                 
             case 'final_results':
@@ -123,12 +158,20 @@ class QuizParticipant {
     async joinQuiz() {
         const nickname = this.elements.nickname.value.trim();
         if (!nickname) {
-            alert('ニックネームを入力してください');
+            this.showMessage('ニックネームを入力してください');
+            return;
+        }
+
+        if (nickname.length > 20) {
+            this.showMessage('ニックネームは20文字以内で入力してください');
             return;
         }
 
         this.elements.joinBtn.disabled = true;
         this.elements.joinBtn.textContent = '参加中...';
+        
+        // Hide mobile keyboard
+        this.elements.nickname.blur();
 
         try {
             const headers = {
@@ -163,7 +206,7 @@ class QuizParticipant {
             }
         } catch (error) {
             console.error('Error joining quiz:', error);
-            alert('参加に失敗しました: ' + error.message);
+            this.showMessage('参加に失敗しました: ' + error.message);
         } finally {
             this.elements.joinBtn.disabled = false;
             this.elements.joinBtn.textContent = '参加する';
@@ -192,14 +235,24 @@ class QuizParticipant {
                 this.showWaiting();
                 this.connectWebSocket();
             } else {
+                // Session rejoin failed, clear session and show join screen
                 localStorage.removeItem('quiz_session_id');
                 this.sessionID = null;
+                this.showJoinScreen();
             }
         } catch (error) {
             console.error('Error rejoining:', error);
             localStorage.removeItem('quiz_session_id');
             this.sessionID = null;
+            this.showJoinScreen();
         }
+    }
+
+    showJoinScreen() {
+        this.hideAllSections();
+        this.elements.joinSection.classList.remove('hidden');
+        this.elements.nickname.value = ''; // Clear nickname field
+        this.elements.nickname.focus(); // Focus on nickname input
     }
 
     showWaiting() {
@@ -210,6 +263,7 @@ class QuizParticipant {
     showQuestion(questionData) {
         this.currentQuestion = questionData;
         this.answered = false;
+        this.answersBlocked = false;
         
         this.hideAllSections();
         this.elements.questionSection.classList.remove('hidden');
@@ -235,14 +289,36 @@ class QuizParticipant {
             const button = document.createElement('button');
             button.className = 'choice-btn';
             button.textContent = `${String.fromCharCode(65 + index)}. ${choice}`;
-            button.addEventListener('click', () => this.selectAnswer(index));
+            
+            // Standard click event
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.selectAnswer(index);
+            });
+            
+            // Touch events for better mobile experience
+            button.addEventListener('touchstart', (e) => {
+                if (this.answered) return;
+                button.style.backgroundColor = '#f0f8ff';
+            }, { passive: true });
+            
+            button.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (this.answered) return;
+                button.style.backgroundColor = '';
+                this.selectAnswer(index);
+            }, { passive: false });
+            
+            button.addEventListener('touchcancel', (e) => {
+                button.style.backgroundColor = '';
+            });
             
             this.elements.choicesContainer.appendChild(button);
         });
     }
 
     async selectAnswer(answerIndex) {
-        if (this.answered) return;
+        if (this.answered || this.answersBlocked) return;
         
         this.answered = true;
         this.disableChoices();
@@ -268,14 +344,18 @@ class QuizParticipant {
                 this.elements.currentScore.textContent = data.new_score;
                 this.elements.userScore.textContent = data.new_score;
             } else {
-                console.error('Error submitting answer:', data.error);
+                if (!this.answersBlocked) {
+                    console.error('Error submitting answer:', data.error);
+                    this.answered = false;
+                    this.enableChoices();
+                }
+            }
+        } catch (error) {
+            if (!this.answersBlocked) {
+                console.error('Error submitting answer:', error);
                 this.answered = false;
                 this.enableChoices();
             }
-        } catch (error) {
-            console.error('Error submitting answer:', error);
-            this.answered = false;
-            this.enableChoices();
         }
     }
 
@@ -287,6 +367,11 @@ class QuizParticipant {
     enableChoices() {
         const choices = this.elements.choicesContainer.querySelectorAll('.choice-btn');
         choices.forEach(btn => btn.disabled = false);
+    }
+    
+    blockAnswers() {
+        this.answersBlocked = true;
+        this.disableChoices();
     }
 
     showFeedback(isCorrect) {
@@ -303,9 +388,15 @@ class QuizParticipant {
         this.hideAllSections();
         this.elements.resultsSection.classList.remove('hidden');
         
-        this.elements.finalScore.textContent = `あなたのスコア: ${this.user.score}点`;
-        
-        this.renderRankings(resultsData.results);
+        if (resultsData.team_mode && resultsData.teams) {
+            // チーム戦の場合はチーム結果のみ表示
+            this.elements.finalScore.textContent = `チーム戦結果`;
+            this.renderTeamRankings(resultsData.teams);
+        } else {
+            // 個人戦の場合は従来通り
+            this.elements.finalScore.textContent = `あなたのスコア: ${this.user.score}点`;
+            this.renderRankings(resultsData.results);
+        }
     }
 
     renderRankings(results) {
@@ -333,6 +424,76 @@ class QuizParticipant {
         });
     }
 
+    renderTeamRankings(teams) {
+        // チームを得点順にソート
+        teams.sort((a, b) => b.score - a.score);
+        
+        this.elements.rankings.innerHTML = '';
+        
+        // 現在のユーザーが所属するチームを特定
+        let userTeamId = null;
+        if (this.user) {
+            for (const team of teams) {
+                if (team.members && team.members.some(member => member.id === this.user.id)) {
+                    userTeamId = team.id;
+                    break;
+                }
+            }
+        }
+        
+        teams.forEach((team, index) => {
+            const teamItem = document.createElement('div');
+            teamItem.className = 'team-ranking-item';
+            
+            // 自分のチームをハイライト
+            const isUserTeam = team.id === userTeamId;
+            if (isUserTeam) {
+                teamItem.style.backgroundColor = '#f0f8ff';
+                teamItem.style.fontWeight = 'bold';
+                teamItem.style.border = '2px solid #007bff';
+            }
+            
+            // チーム情報のヘッダー
+            const teamHeader = document.createElement('div');
+            teamHeader.className = 'team-header';
+            teamHeader.innerHTML = `
+                <span class="rank">${index + 1}位</span>
+                <span class="team-name">${team.name}</span>
+                <span class="team-score">${team.score}点</span>
+            `;
+            teamItem.appendChild(teamHeader);
+            
+            // チームメンバーの詳細
+            if (team.members && team.members.length > 0) {
+                const membersDiv = document.createElement('div');
+                membersDiv.className = 'team-members';
+                
+                team.members.forEach(member => {
+                    const memberDiv = document.createElement('div');
+                    memberDiv.className = 'team-member';
+                    
+                    // 自分自身をハイライト
+                    const isCurrentUser = member.id === this.user.id;
+                    if (isCurrentUser) {
+                        memberDiv.style.backgroundColor = '#e6f3ff';
+                        memberDiv.style.fontWeight = 'bold';
+                    }
+                    
+                    memberDiv.innerHTML = `
+                        <span class="member-name">${member.nickname}</span>
+                        <span class="member-score">${member.score}点</span>
+                    `;
+                    
+                    membersDiv.appendChild(memberDiv);
+                });
+                
+                teamItem.appendChild(membersDiv);
+            }
+            
+            this.elements.rankings.appendChild(teamItem);
+        });
+    }
+
     async sendEmoji(emoji) {
         if (!this.sessionID) return;
         
@@ -357,62 +518,68 @@ class QuizParticipant {
         }, 200);
     }
 
-    showTimeAlert(data) {
-        // Create alert overlay
-        const alertOverlay = document.createElement('div');
-        alertOverlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 87, 34, 0.95);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            font-size: 2rem;
-            font-weight: bold;
-            z-index: 9999;
-            animation: pulse 0.5s ease-in-out infinite alternate;
-        `;
-
-        alertOverlay.innerHTML = `
-            <div style="text-align: center;">
-                <div style="font-size: 4rem; margin-bottom: 1rem;">⏰</div>
-                <div>${data.message}</div>
-            </div>
-        `;
-
-        // Add CSS animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes pulse {
-                0% { opacity: 0.8; transform: scale(1); }
-                100% { opacity: 1; transform: scale(1.05); }
-            }
-        `;
-        document.head.appendChild(style);
-
-        document.body.appendChild(alertOverlay);
-
-        // Remove after 3 seconds
-        setTimeout(() => {
-            if (alertOverlay.parentNode) {
-                alertOverlay.parentNode.removeChild(alertOverlay);
-            }
-            if (style.parentNode) {
-                style.parentNode.removeChild(style);
-            }
-        }, 3000);
-    }
-
     hideAllSections() {
         this.elements.joinSection.classList.add('hidden');
         this.elements.waitingSection.classList.add('hidden');
         this.elements.questionSection.classList.add('hidden');
         this.elements.resultsSection.classList.add('hidden');
+    }
+
+    showResetModal() {
+        this.elements.resetModal.classList.remove('hidden');
+    }
+
+    hideResetModal() {
+        this.elements.resetModal.classList.add('hidden');
+    }
+
+    async resetSession() {
+        if (!this.sessionID) {
+            this.showMessage('セッションが見つかりません');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/reset-session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Session-ID': this.sessionID
+                }
+            });
+
+            if (response.ok) {
+                // セッション情報をクリア
+                localStorage.removeItem('quiz_session_id');
+                this.sessionID = null;
+                this.user = null;
+                
+                // WebSocket接続を切断
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+                
+                // モーダルを閉じる
+                this.hideResetModal();
+                
+                // 参加登録画面に戻る
+                this.hideAllSections();
+                this.elements.joinSection.classList.remove('hidden');
+                this.elements.nickname.value = '';
+                
+                // 接続状態をリセット
+                this.updateConnectionStatus(false);
+                
+                this.showMessage('セッションが破棄されました。再度参加登録を行ってください。');
+            } else {
+                const error = await response.json();
+                this.showMessage(`セッション破棄に失敗しました: ${error.error}`);
+            }
+        } catch (error) {
+            console.error('Reset session error:', error);
+            this.showMessage('セッション破棄中にエラーが発生しました');
+        }
     }
 
     updateConnectionStatus(connected) {
@@ -423,6 +590,33 @@ class QuizParticipant {
             this.elements.connectionStatus.className = 'status-indicator disconnected';
             this.elements.connectionText.textContent = '接続中...';
         }
+    }
+    
+    showMessage(message) {
+        // Replace alert() with a mobile-friendly message display
+        if (window.confirm) {
+            // Use confirm for important messages that need user acknowledgment
+            if (message.includes('破棄') || message.includes('失敗')) {
+                confirm(message);
+            } else {
+                alert(message);
+            }
+        } else {
+            alert(message);
+        }
+    }
+    
+    preventZoom() {
+        // Prevent double-tap zoom on iOS
+        document.addEventListener('touchend', (e) => {
+            const now = new Date().getTime();
+            if (now - this.lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            this.lastTouchEnd = now;
+        }, false);
+        
+        this.lastTouchEnd = 0;
     }
 }
 

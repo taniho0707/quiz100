@@ -117,6 +117,10 @@ func (ql *QuizLogger) LogUserReconnect(nickname string, sessionID string) {
 	ql.Info("User reconnected: %s (Session: %s)", nickname, sessionID[:8])
 }
 
+func (ql *QuizLogger) LogUserSessionReset(nickname string, sessionID string) {
+	ql.Info("User session reset: %s (Session: %s)", nickname, sessionID[:8])
+}
+
 func (ql *QuizLogger) LogQuestionStart(questionNumber int, questionText string) {
 	ql.Info("--- QUESTION %d STARTED ---", questionNumber)
 	ql.Info("Question: %s", questionText)

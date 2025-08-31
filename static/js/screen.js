@@ -5,6 +5,9 @@ class QuizScreen {
         this.participants = new Map();
         this.currentQuestion = null;
         this.emojiAnimations = [];
+        this.countdownInterval = null;
+        this.timeUpTimeout = null;
+        this.answersBlocked = false;
 
         this.initializeElements();
         this.connectWebSocket();
@@ -37,6 +40,11 @@ class QuizScreen {
             answerStats: document.getElementById('answer-stats'),
             progressFill: document.getElementById('progress-fill'),
             answerCount: document.getElementById('answer-count'),
+            
+            countdownDisplay: document.getElementById('countdown-display'),
+            countdownNumber: document.getElementById('countdown-number'),
+            timeUpDisplay: document.getElementById('time-up-display'),
+            countdownBorder: document.getElementById('countdown-border'),
             
             rankingsDisplay: document.getElementById('rankings-display'),
             emojiReactions: document.getElementById('emoji-reactions')
@@ -93,8 +101,16 @@ class QuizScreen {
                 this.handleAnswerReceived(message.data);
                 break;
                 
-            case 'time_alert':
-                this.showTimeAlert(message.data);
+            case 'time_alert': // FIXME: 消したい
+                break;
+                
+            case 'countdown':
+                this.showCountdown(message.data.seconds_left);
+                break;
+                
+            case 'question_end':
+                this.hideCountdown();
+                this.blockAnswers();
                 break;
                 
             case 'final_results':
@@ -123,6 +139,9 @@ class QuizScreen {
 
     handleQuestionStart(data) {
         this.currentQuestion = data;
+        this.answersBlocked = false;
+        this.hideCountdown();
+        this.elements.timeUpDisplay.classList.add('hidden');
         this.showQuestionScreen();
         this.displayQuestion(data);
     }
@@ -133,7 +152,14 @@ class QuizScreen {
 
     handleFinalResults(data) {
         this.showResultsScreen();
-        this.displayFinalResults(data.results);
+        
+        if (data.team_mode && data.teams) {
+            // チーム戦の場合はチーム結果のみ表示
+            this.displayTeamResults(data.teams);
+        } else {
+            // 個人戦の場合は従来通り
+            this.displayFinalResults(data.results);
+        }
     }
 
     handleEmojiReaction(data) {
@@ -247,7 +273,7 @@ class QuizScreen {
     }
 
     getAnsweredCount() {
-        return 5;
+        return 5; // FIXME:
     }
 
     displayFinalResults(results) {
@@ -271,6 +297,63 @@ class QuizScreen {
             `;
             
             this.elements.rankingsDisplay.appendChild(item);
+        });
+    }
+
+    displayTeamResults(teams) {
+        // チームを得点順にソート
+        teams.sort((a, b) => b.score - a.score);
+        
+        this.elements.rankingsDisplay.innerHTML = '';
+        
+        teams.forEach((team, index) => {
+            const teamItem = document.createElement('div');
+            teamItem.className = 'team-ranking-item';
+            
+            let trophy = '';
+            if (index === 0) trophy = '🥇';
+            else if (index === 1) trophy = '🥈';
+            else if (index === 2) trophy = '🥉';
+            
+            // チーム情報のヘッダー
+            const teamHeader = document.createElement('div');
+            teamHeader.className = 'team-header';
+            teamHeader.innerHTML = `
+                <span class="rank">${trophy} ${index + 1}位</span>
+                <span class="team-name">${team.name}</span>
+                <span class="team-score">${team.score}点</span>
+            `;
+            teamItem.appendChild(teamHeader);
+            
+            // チームメンバーの詳細
+            if (team.members && team.members.length > 0) {
+                const membersDiv = document.createElement('div');
+                membersDiv.className = 'team-members';
+                
+                // メンバーを得点順にソート
+                const sortedMembers = [...team.members].sort((a, b) => b.score - a.score);
+                
+                sortedMembers.forEach((member, memberIndex) => {
+                    const memberDiv = document.createElement('div');
+                    memberDiv.className = 'team-member';
+                    
+                    let memberTrophy = '';
+                    if (memberIndex === 0 && sortedMembers.length > 1) {
+                        memberTrophy = '👑'; // チーム内1位
+                    }
+                    
+                    memberDiv.innerHTML = `
+                        <span class="member-name">${memberTrophy} ${member.nickname}</span>
+                        <span class="member-score">${member.score}点</span>
+                    `;
+                    
+                    membersDiv.appendChild(memberDiv);
+                });
+                
+                teamItem.appendChild(membersDiv);
+            }
+            
+            this.elements.rankingsDisplay.appendChild(teamItem);
         });
     }
 
@@ -305,65 +388,50 @@ class QuizScreen {
         }, 1000);
     }
 
-    showTimeAlert(data) {
-        // Create alert overlay for large screen
-        const alertOverlay = document.createElement('div');
-        alertOverlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 87, 34, 0.95);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            font-size: 5rem;
-            font-weight: bold;
-            text-align: center;
-            z-index: 9999;
-            animation: screenAlert 1s ease-in-out infinite alternate;
-        `;
-
-        alertOverlay.innerHTML = `
-            <div>
-                <div style="font-size: 8rem; margin-bottom: 2rem;">⏰</div>
-                <div>${data.message}</div>
-                <div style="font-size: 3rem; margin-top: 2rem; opacity: 0.8;">お急ぎください！</div>
-            </div>
-        `;
-
-        // Add CSS animation for large screen
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes screenAlert {
-                0% { 
-                    opacity: 0.9; 
-                    transform: scale(1);
-                    background: rgba(255, 87, 34, 0.95);
-                }
-                100% { 
-                    opacity: 1; 
-                    transform: scale(1.02);
-                    background: rgba(255, 152, 0, 0.95);
-                }
-            }
-        `;
-        document.head.appendChild(style);
-
-        document.body.appendChild(alertOverlay);
-
-        // Remove after 4 seconds (slightly longer for large screen)
+    showCountdown(secondsLeft) {
+        if (secondsLeft > 5 || secondsLeft < 1) {
+            this.hideCountdown();
+            return;
+        }
+        
+        // Show the countdown number
+        this.elements.countdownNumber.textContent = secondsLeft;
+        this.elements.countdownNumber.classList.remove('hidden');
+        
+        // Show red border effect
+        this.elements.countdownBorder.classList.remove('hidden');
+        
+        if (secondsLeft === 1) {
+            // Show "Time Up!" after 1 second
+            setTimeout(() => {
+                this.hideCountdown();
+                this.showTimeUp();
+            }, 1000);
+        }
+    }
+    
+    hideCountdown() {
+        if (this.elements.countdownNumber) {
+            this.elements.countdownNumber.classList.add('hidden');
+        }
+        if (this.elements.countdownBorder) {
+            this.elements.countdownBorder.classList.add('hidden');
+        }
+    }
+    
+    showTimeUp() {
+        this.elements.timeUpDisplay.classList.remove('hidden');
+        
+        // Hide after 3 seconds
         setTimeout(() => {
-            if (alertOverlay.parentNode) {
-                alertOverlay.parentNode.removeChild(alertOverlay);
-            }
-            if (style.parentNode) {
-                style.parentNode.removeChild(style);
-            }
-        }, 4000);
+            this.elements.timeUpDisplay.classList.add('hidden');
+        }, 3000);
+    }
+    
+    blockAnswers() {
+        this.answersBlocked = true;
+        // No direct action needed here since this is the screen display
+        // The participant.js handles answer blocking
     }
 
     updateConnectionStatus(connected) {

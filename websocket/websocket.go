@@ -38,10 +38,10 @@ type Hub struct {
 }
 
 type Message struct {
-	Type   string      `json:"type"`
-	Data   interface{} `json:"data"`
-	UserID int         `json:"user_id,omitempty"`
-	Target ClientType  `json:"target,omitempty"`
+	Type   string     `json:"type"`
+	Data   any        `json:"data"`
+	UserID int        `json:"user_id,omitempty"`
+	Target ClientType `json:"target,omitempty"`
 }
 
 var upgrader = websocket.Upgrader{
@@ -237,17 +237,15 @@ func (c *Client) WritePump() {
 	defer c.Conn.Close()
 
 	for {
-		select {
-		case message, ok := <-c.Send:
-			if !ok {
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
+		message, ok := <-c.Send
+		if !ok {
+			c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+			return
+		}
 
-			if err := c.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
-				log.Printf("WebSocket write error: %v", err)
-				return
-			}
+		if err := c.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
+			log.Printf("WebSocket write error: %v", err)
+			return
 		}
 	}
 }

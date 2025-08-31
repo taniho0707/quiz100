@@ -61,6 +61,7 @@ func main() {
 		api.POST("/join", handler.Join)
 		api.POST("/answer", handler.Answer)
 		api.POST("/emoji", handler.SendEmoji)
+		api.POST("/reset-session", handler.ResetSession)
 		api.GET("/status", handler.GetStatus)
 		api.GET("/health", handler.HealthCheck)
 

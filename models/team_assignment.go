@@ -166,3 +166,103 @@ func (s *TeamAssignmentService) CalculateTeamScores() ([]Team, error) {
 	// Return updated teams with scores
 	return s.teamRepo.GetAllTeamsWithMembers()
 }
+
+// AssignUserToAvailableTeam assigns a new user to the least filled team
+// If all teams are at capacity, it creates a new team
+func (s *TeamAssignmentService) AssignUserToAvailableTeam(userID int, nickname string) (*Team, error) {
+	// Get all existing teams with their members
+	teams, err := s.teamRepo.GetAllTeamsWithMembers()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing teams: %v", err)
+	}
+
+	if len(teams) == 0 {
+		// No teams exist yet, return without assignment
+		return nil, nil
+	}
+
+	teamSize := s.config.Event.TeamSize
+	if teamSize <= 0 {
+		teamSize = 5 // Default team size
+	}
+
+	// Find the team with the least members that isn't full
+	var targetTeam *Team
+	minMembers := teamSize + 1 // Start with max+1 so any team with space will be less
+
+	for i := range teams {
+		memberCount := len(teams[i].Members)
+		if memberCount < teamSize && memberCount < minMembers {
+			targetTeam = &teams[i]
+			minMembers = memberCount
+		}
+	}
+
+	// Check for separation constraints
+	if len(s.config.TeamSeparation.AvoidGroups) > 0 && targetTeam != nil {
+		// Check if any avoid group member is already in the target team
+		for _, avoidGroup := range s.config.TeamSeparation.AvoidGroups {
+			if s.isNameMatch(nickname, avoidGroup) {
+				// This user matches an avoid group, check if any team member also matches
+				for _, member := range targetTeam.Members {
+					if s.isNameMatch(member.Nickname, avoidGroup) {
+						// Conflict found, try to find another team
+						targetTeam = nil
+						break
+					}
+				}
+				if targetTeam == nil {
+					break
+				}
+			}
+		}
+
+		// If target team has conflict, try to find another team
+		if targetTeam == nil {
+			for i := range teams {
+				if len(teams[i].Members) >= teamSize {
+					continue // Team is full
+				}
+
+				hasConflict := false
+				for _, avoidGroup := range s.config.TeamSeparation.AvoidGroups {
+					if s.isNameMatch(nickname, avoidGroup) {
+						for _, member := range teams[i].Members {
+							if s.isNameMatch(member.Nickname, avoidGroup) {
+								hasConflict = true
+								break
+							}
+						}
+						if hasConflict {
+							break
+						}
+					}
+				}
+
+				if !hasConflict {
+					targetTeam = &teams[i]
+					break
+				}
+			}
+		}
+	}
+
+	// If no team available or all are full, create a new team
+	if targetTeam == nil {
+		teamName := fmt.Sprintf("チーム%d", len(teams)+1)
+		newTeam, err := s.teamRepo.CreateTeam(teamName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create new team: %v", err)
+		}
+		targetTeam = newTeam
+	}
+
+	// Assign user to the target team
+	err = s.userRepo.AssignUserToTeam(userID, targetTeam.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to assign user to team: %v", err)
+	}
+
+	// Return the updated team with members
+	return s.teamRepo.GetTeamWithMembers(targetTeam.ID)
+}

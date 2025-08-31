@@ -5,23 +5,27 @@
 }
 
 body {
-    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #333;
+    padding: 10px;
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
 }
 
 .container {
     max-width: 400px;
-    width: 90%;
+    width: 100%;
     background: white;
     border-radius: 20px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
     overflow: hidden;
     position: relative;
+    margin: 0;
 }
 
 .status-indicator {
@@ -64,12 +68,15 @@ h2 {
 
 input[type="text"] {
     width: 100%;
-    padding: 15px;
+    padding: 16px;
     border: 2px solid #e1e5e9;
     border-radius: 10px;
     font-size: 16px;
     margin-bottom: 15px;
     transition: border-color 0.3s ease;
+    -webkit-appearance: none;
+    -webkit-border-radius: 10px;
+    box-sizing: border-box;
 }
 
 input[type="text"]:focus {
@@ -78,7 +85,7 @@ input[type="text"]:focus {
 }
 
 .btn {
-    padding: 15px 30px;
+    padding: 16px 30px;
     border: none;
     border-radius: 10px;
     font-size: 16px;
@@ -87,6 +94,10 @@ input[type="text"]:focus {
     transition: all 0.3s ease;
     width: 100%;
     margin-bottom: 10px;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
 }
 
 .btn-primary {
@@ -103,6 +114,33 @@ input[type="text"]:focus {
     background: #ccc;
     cursor: not-allowed;
     transform: none;
+}
+
+.btn-danger {
+    background: #f44336;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #da190b;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #545b62;
+    transform: translateY(-2px);
+}
+
+.btn-small {
+    padding: 8px 16px;
+    font-size: 14px;
+    width: auto;
+    margin-bottom: 0;
 }
 
 .question-header {
@@ -149,8 +187,8 @@ input[type="text"]:focus {
 .choice-btn {
     display: block;
     width: 100%;
-    padding: 15px;
-    margin-bottom: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
     border: 2px solid #e1e5e9;
     border-radius: 10px;
     background: white;
@@ -158,6 +196,11 @@ input[type="text"]:focus {
     cursor: pointer;
     transition: all 0.3s ease;
     text-align: left;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 48px;
+    line-height: 1.4;
 }
 
 .choice-btn:hover {
@@ -261,13 +304,21 @@ input[type="text"]:focus {
 }
 
 .emoji-btn {
-    padding: 10px;
+    padding: 12px;
     border: 2px solid #e1e5e9;
     border-radius: 8px;
     background: white;
-    font-size: 20px;
+    font-size: 24px;
     cursor: pointer;
     transition: all 0.3s ease;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 48px;
+    min-width: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .emoji-btn:hover {
@@ -280,13 +331,18 @@ input[type="text"]:focus {
 }
 
 @media (max-width: 480px) {
+    body {
+        padding: 5px;
+    }
+    
     .container {
-        width: 95%;
-        margin: 10px;
+        width: 100%;
+        margin: 0;
+        border-radius: 15px;
     }
     
     .section {
-        padding: 20px;
+        padding: 20px 15px;
     }
     
     h1 {
@@ -295,5 +351,140 @@ input[type="text"]:focus {
     
     .emoji-buttons {
         grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
     }
+    
+    .question-content h3 {
+        font-size: 16px;
+        line-height: 1.5;
+    }
+    
+    .choice-btn {
+        padding: 14px;
+        font-size: 15px;
+    }
+    
+    .feedback {
+        font-size: 16px;
+        padding: 15px;
+        min-width: 180px;
+    }
+}
+
+@media (max-width: 320px) {
+    .section {
+        padding: 15px 10px;
+    }
+    
+    .emoji-buttons {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .choice-btn {
+        padding: 12px;
+        font-size: 14px;
+    }
+    
+    .emoji-btn {
+        font-size: 20px;
+        padding: 10px;
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* セッション破棄ボタン（枠外） */
+.session-reset-control {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+}
+
+@media (max-width: 480px) {
+    .session-reset-control {
+        top: 5px;
+        right: 5px;
+    }
+}
+
+.reset-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 32px;
+}
+
+.reset-btn:hover {
+    opacity: 1;
+    background: #5a6268;
+}
+
+/* モーダル */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+}
+
+.modal.hidden {
+    display: none !important;
+}
+
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+}
+
+.modal-content h3 {
+    margin-bottom: 15px;
+    color: #f44336;
+    font-size: 20px;
+}
+
+.modal-content p {
+    margin-bottom: 25px;
+    color: #555;
+    line-height: 1.5;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.modal-buttons .btn {
+    width: auto;
+    min-width: 100px;
+    margin-bottom: 0;
 }

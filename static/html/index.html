@@ -2,11 +2,16 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Quiz Participant</title>
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
+    <!-- セッション破棄ボタン（枠外） -->
+    <div class="session-reset-control">
+        <button id="reset-session-btn" class="reset-btn">リセット</button>
+    </div>
+
     <div class="container">
         <div id="connection-status" class="status-indicator">
             <span id="connection-text">接続中...</span>
@@ -15,7 +20,7 @@
         <div id="join-section" class="section">
             <h1>🎉 クイズ参加</h1>
             <div class="input-group">
-                <input type="text" id="nickname" placeholder="ニックネームを入力">
+                <input type="text" id="nickname" placeholder="ニックネームを入力" maxlength="20">
                 <button id="join-btn" class="btn btn-primary">参加する</button>
             </div>
         </div>
@@ -58,14 +63,28 @@
         <div id="emoji-section" class="emoji-section">
             <h4>😄 リアクション</h4>
             <div class="emoji-buttons">
-                <button class="emoji-btn" data-emoji="👍">👍</button>
-                <button class="emoji-btn" data-emoji="❤️">❤️</button>
-                <button class="emoji-btn" data-emoji="😂">😂</button>
-                <button class="emoji-btn" data-emoji="😮">😮</button>
-                <button class="emoji-btn" data-emoji="😢">😢</button>
-                <button class="emoji-btn" data-emoji="🔥">🔥</button>
-                <button class="emoji-btn" data-emoji="✨">✨</button>
-                <button class="emoji-btn" data-emoji="💪">💪</button>
+                <button class="emoji-btn" data-emoji="👍" aria-label="いいね">👍</button>
+                <button class="emoji-btn" data-emoji="❤️" aria-label="ハート">❤️</button>
+                <button class="emoji-btn" data-emoji="😂" aria-label="笑い">😂</button>
+                <button class="emoji-btn" data-emoji="😮" aria-label="驚き">😮</button>
+                <button class="emoji-btn" data-emoji="😢" aria-label="悲しい">😢</button>
+                <button class="emoji-btn" data-emoji="🔥" aria-label="ファイヤー">🔥</button>
+                <button class="emoji-btn" data-emoji="✨" aria-label="キラキラ">✨</button>
+                <button class="emoji-btn" data-emoji="💪" aria-label="がんばれ">💪</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- セッション破棄確認モーダル -->
+    <div id="reset-modal" class="modal hidden">
+        <div class="modal-overlay">
+            <div class="modal-content">
+                <h3>⚠️ セッション破棄</h3>
+                <p>これまでの回答状況が消去されます。<br>本当に破棄しますか？</p>
+                <div class="modal-buttons">
+                    <button id="reset-cancel-btn" class="btn btn-secondary">戻る</button>
+                    <button id="reset-confirm-btn" class="btn btn-danger">破棄する</button>
+                </div>
             </div>
         </div>
     </div>

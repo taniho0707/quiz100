@@ -3,8 +3,8 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -39,7 +39,7 @@ func NewDatabase(dataSourceName string) (*Database, error) {
 
 func (db *Database) InitSchema() error {
 	schemaPath := filepath.Join("database", "init.sql")
-	schema, err := ioutil.ReadFile(schemaPath)
+	schema, err := os.ReadFile(schemaPath)
 	if err != nil {
 		return fmt.Errorf("failed to read schema file: %v", err)
 	}

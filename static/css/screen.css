@@ -78,7 +78,7 @@ body {
     border-radius: 20px;
     padding: 40px;
     margin: 30px auto;
-    max-width: 500px;
+    /* max-width: 500px; */
     backdrop-filter: blur(10px);
 }
 

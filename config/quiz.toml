@@ -2,6 +2,7 @@
 title = "新年会クイズ大会"
 team_mode = true
 team_size = 2
+qrcode = "images/qr_test.png"
 
 [team_separation]
 avoid_groups = ["田中", "山田", "やまだ", "ヤマダ"]

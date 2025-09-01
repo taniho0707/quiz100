@@ -11,7 +11,7 @@
         <header class="screen-header">
             <h1 id="event-title">クイズ大会</h1>
             <div class="status-bar">
-                <span id="question-status">開始をお待ちください</span>
+                <span id="question-status">開始までお待ちください</span>
                 <span id="participant-count">参加者: 0人</span>
             </div>
         </header>
@@ -19,10 +19,10 @@
         <main class="screen-content">
             <div id="waiting-screen" class="screen-section">
                 <div class="waiting-message">
-                    <h2>🎉 参加者をお待ちしています</h2>
+                    <h2>🎉 参加受付中</h2>
                     <p>スマートフォンでQRコードを読み取るか、URLにアクセスしてください</p>
                     <div class="qr-placeholder">
-                        <p>QRコード表示エリア</p>
+                        <p><img id="qrcode-image" src="" /></p>
                         <p>URL: <span id="join-url">http://localhost:8080</span></p>
                     </div>
                 </div>
@@ -38,7 +38,7 @@
             <div id="question-screen" class="screen-section hidden">
                 <div class="question-header">
                     <span class="question-number">Q<span id="current-question-num">1</span></span>
-                    <span class="question-total">/ <span id="total-questions">5</span></span>
+                    <!-- <span class="question-total">/ <span id="total-questions">5</span></span> -->
                 </div>
                 
                 <div class="question-content">

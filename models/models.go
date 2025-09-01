@@ -173,12 +173,12 @@ func (r *UserRepository) UpdateUserScore(userID int, score int) error {
 	return err
 }
 
-func (r *EventRepository) CreateEvent(title string, teamMode bool) (*Event, error) {
+func (r *EventRepository) CreateEvent(title string, teamMode bool, teamSize int, qrcode string) (*Event, error) {
 	query := `
-		INSERT INTO events (title, status, team_mode, created_at, updated_at)
-		VALUES (?, 'waiting', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		INSERT INTO events (title, status, team_mode, team_size, qrcode, created_at, updated_at)
+		VALUES (?, 'waiting', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`
-	result, err := r.db.Exec(query, title, teamMode)
+	result, err := r.db.Exec(query, title, teamMode, teamSize, qrcode)
 	if err != nil {
 		return nil, err
 	}

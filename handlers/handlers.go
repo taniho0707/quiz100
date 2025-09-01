@@ -290,13 +290,6 @@ func (h *Handler) SendEmoji(c *gin.Context) {
 		return
 	}
 
-	err = h.emojiReactionRepo.CreateReaction(user.ID, req.Emoji)
-	if err != nil {
-		h.logger.LogError("creating emoji reaction", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save emoji reaction"})
-		return
-	}
-
 	h.logger.LogEmojiReaction(user.Nickname, req.Emoji)
 
 	message := websocket.Message{
@@ -377,7 +370,7 @@ func (h *Handler) AdminStart(c *gin.Context) {
 		return
 	}
 
-	event, err := h.eventRepo.CreateEvent(h.config.Event.Title, h.config.Event.TeamMode)
+	event, err := h.eventRepo.CreateEvent(h.config.Event.Title, h.config.Event.TeamMode, h.config.Event.TeamSize, h.config.Event.QrCode)
 	if err != nil {
 		h.logger.LogError("creating event", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create event"})
@@ -686,6 +679,19 @@ func (h *Handler) HealthCheck(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, healthInfo)
+}
+
+// Screen Quiz Info API
+func (h *Handler) GetScreenInfo(c *gin.Context) {
+	screenInfo := gin.H{
+		"title":         h.config.Event.Title,
+		"team_mode":     h.config.Event.TeamMode,
+		"team_size":     h.config.Event.TeamSize,
+		"qrcode":        h.config.Event.QrCode,
+		"current_event": h.currentEvent,
+	}
+
+	c.JSON(http.StatusOK, screenInfo)
 }
 
 // Debug information endpoint

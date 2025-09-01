@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS events (
     status TEXT DEFAULT 'waiting', -- waiting, started, finished
     current_question INTEGER DEFAULT 0,
     team_mode BOOLEAN DEFAULT false,
+    team_size INTEGER DEFAULT 1,
+    qrcode TEXT DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

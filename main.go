@@ -26,11 +26,6 @@ func main() {
 	}
 	defer logger.Close()
 
-	// Clean up old logs at startup
-	if err := logger.CleanupOldLogs(); err != nil {
-		logger.Warning("Failed to cleanup old logs: %v", err)
-	}
-
 	db, err := database.NewDatabase("database/quiz.db")
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
@@ -75,6 +70,12 @@ func main() {
 			admin.POST("/teams", handler.AdminCreateTeams)
 			admin.GET("/teams", handler.GetTeams)
 			admin.GET("/debug", handler.DebugInfo)
+		}
+
+		screen := api.Group("/screen")
+		screen.Use(middleware.ScreenAuth())
+		{
+			screen.GET("/info", handler.GetScreenInfo)
 		}
 	}
 

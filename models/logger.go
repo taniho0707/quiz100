@@ -78,19 +78,19 @@ func (ql *QuizLogger) Close() error {
 	return nil
 }
 
-func (ql *QuizLogger) Info(format string, v ...interface{}) {
+func (ql *QuizLogger) Info(format string, v ...any) {
 	ql.infoLogger.Printf(format, v...)
 }
 
-func (ql *QuizLogger) Warning(format string, v ...interface{}) {
+func (ql *QuizLogger) Warning(format string, v ...any) {
 	ql.warningLogger.Printf(format, v...)
 }
 
-func (ql *QuizLogger) Error(format string, v ...interface{}) {
+func (ql *QuizLogger) Error(format string, v ...any) {
 	ql.errorLogger.Printf(format, v...)
 }
 
-func (ql *QuizLogger) Debug(format string, v ...interface{}) {
+func (ql *QuizLogger) Debug(format string, v ...any) {
 	ql.debugLogger.Printf(format, v...)
 }
 
@@ -161,56 +161,5 @@ func (ql *QuizLogger) LogError(operation string, err error) {
 }
 
 func (ql *QuizLogger) LogAlert(message string) {
-	ql.Warning("ALERT: %s", message)
-}
-
-// Cleanup old log files (keep only last 10 files)
-func (ql *QuizLogger) CleanupOldLogs() error {
-	files, err := filepath.Glob(filepath.Join(ql.logDir, "quiz_*.log"))
-	if err != nil {
-		return fmt.Errorf("failed to list log files: %v", err)
-	}
-
-	if len(files) <= 10 {
-		return nil // Keep all files if less than or equal to 10
-	}
-
-	// Sort files by modification time (oldest first)
-	type fileInfo struct {
-		path    string
-		modTime time.Time
-	}
-
-	var fileInfos []fileInfo
-	for _, file := range files {
-		info, err := os.Stat(file)
-		if err != nil {
-			continue
-		}
-		fileInfos = append(fileInfos, fileInfo{
-			path:    file,
-			modTime: info.ModTime(),
-		})
-	}
-
-	// Sort by modification time (oldest first)
-	for i := 0; i < len(fileInfos)-1; i++ {
-		for j := i + 1; j < len(fileInfos); j++ {
-			if fileInfos[i].modTime.After(fileInfos[j].modTime) {
-				fileInfos[i], fileInfos[j] = fileInfos[j], fileInfos[i]
-			}
-		}
-	}
-
-	// Remove oldest files, keep only last 10
-	filesToRemove := len(fileInfos) - 10
-	for i := 0; i < filesToRemove; i++ {
-		if err := os.Remove(fileInfos[i].path); err != nil {
-			ql.Warning("Failed to remove old log file %s: %v", fileInfos[i].path, err)
-		} else {
-			ql.Info("Removed old log file: %s", fileInfos[i].path)
-		}
-	}
-
-	return nil
+	ql.Info("ALERT: %s", message)
 }

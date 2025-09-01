@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -40,7 +41,7 @@ func getMACAddresses(ip string) ([]string, error) {
 
 		var macs []string
 		for _, iface := range interfaces {
-			if iface.HardwareAddr != nil && len(iface.HardwareAddr) > 0 {
+			if len(iface.HardwareAddr) > 0 {
 				macs = append(macs, iface.HardwareAddr.String())
 			}
 		}
@@ -151,11 +152,7 @@ func isAdminMAC(clientMACs []string) bool {
 
 	for _, clientMAC := range clientMACs {
 		clientMACLower := strings.ToLower(clientMAC)
-		for _, adminMAC := range adminMACs {
-			if clientMACLower == adminMAC {
-				return true
-			}
-		}
+		return slices.Contains(adminMACs, clientMACLower)
 	}
 	return false
 }

@@ -32,7 +32,7 @@ class QuizScreen {
             participantsGrid: document.getElementById('participants-grid'),
             
             currentQuestionNum: document.getElementById('current-question-num'),
-            totalQuestions: document.getElementById('total-questions'),
+            qrcodeImage: document.getElementById('qrcode-image'),
             questionText: document.getElementById('question-text'),
             questionImage: document.getElementById('question-image'),
             choicesDisplay: document.getElementById('choices-display'),
@@ -62,6 +62,7 @@ class QuizScreen {
         this.ws.onopen = () => {
             console.log('Screen WebSocket connected');
             this.updateConnectionStatus(true);
+            this.loadQuizInfo();
         };
         
         this.ws.onmessage = (event) => {
@@ -166,6 +167,20 @@ class QuizScreen {
         this.showEmojiReaction(data.emoji);
     }
 
+    async loadQuizInfo() {
+        try {
+            const response = await fetch('/api/screen/info');
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.elements.eventTitle.textContent = data.title || '';
+                this.elements.qrcodeImage.src = data.qrcode || '';
+            }
+        } catch (error) {
+            console.error('Error loading quiz info:', error);
+        }
+    }
+
     async loadStatus() {
         try {
             const response = await fetch('/api/status');
@@ -176,7 +191,6 @@ class QuizScreen {
                 
                 if (data.event) {
                     this.currentEvent = data.event;
-                    this.elements.eventTitle.textContent = data.config?.title || 'クイズ大会';
                 }
             }
         } catch (error) {
@@ -232,7 +246,6 @@ class QuizScreen {
         const question = questionData.question;
         
         this.elements.currentQuestionNum.textContent = questionData.question_number;
-        this.elements.totalQuestions.textContent = questionData.total_questions;
         this.elements.questionText.textContent = question.Text;
         
         if (question.Image) {
@@ -252,7 +265,7 @@ class QuizScreen {
         choices.forEach((choice, index) => {
             const choiceDiv = document.createElement('div');
             // Convert 0-based index to 1-based for comparison with 1-based correct answer
-            choiceDiv.className = `choice-display ${(index + 1) === correctIndex ? 'correct' : ''}`;
+            choiceDiv.className = `choice-display`;
             choiceDiv.innerHTML = `
                 <span class="choice-letter">${String.fromCharCode(65 + index)}</span>
                 ${choice}

@@ -75,6 +75,7 @@ input[type="text"] {
     margin-bottom: 15px;
     transition: border-color 0.3s ease;
     -webkit-appearance: none;
+    appearance: none;
     -webkit-border-radius: 10px;
     box-sizing: border-box;
 }
@@ -95,6 +96,7 @@ input[type="text"]:focus {
     width: 100%;
     margin-bottom: 10px;
     -webkit-appearance: none;
+    appearance: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     min-height: 44px;
@@ -197,6 +199,7 @@ input[type="text"]:focus {
     transition: all 0.3s ease;
     text-align: left;
     -webkit-appearance: none;
+    appearance: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     min-height: 48px;
@@ -312,6 +315,7 @@ input[type="text"]:focus {
     cursor: pointer;
     transition: all 0.3s ease;
     -webkit-appearance: none;
+    appearance: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     min-height: 48px;
@@ -419,6 +423,7 @@ input[type="text"]:focus {
     opacity: 0.7;
     transition: opacity 0.3s ease;
     -webkit-appearance: none;
+    appearance: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     min-height: 32px;

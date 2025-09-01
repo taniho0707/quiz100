@@ -10,15 +10,16 @@ import (
 )
 
 type Config struct {
-	Event           EventConfig      `toml:"event"`
-	TeamSeparation  TeamSeparationConfig `toml:"team_separation"`
-	Questions       []Question       `toml:"questions"`
+	Event          EventConfig          `toml:"event"`
+	TeamSeparation TeamSeparationConfig `toml:"team_separation"`
+	Questions      []Question           `toml:"questions"`
 }
 
 type EventConfig struct {
 	Title    string `toml:"title"`
 	TeamMode bool   `toml:"team_mode"`
 	TeamSize int    `toml:"team_size"`
+	QrCode   string `toml:"qrcode"`
 }
 
 type TeamSeparationConfig struct {
@@ -26,11 +27,11 @@ type TeamSeparationConfig struct {
 }
 
 type Question struct {
-	Type     string   `toml:"type"`
-	Text     string   `toml:"text"`
-	Image    string   `toml:"image"`
-	Choices  []string `toml:"choices"`
-	Correct  int      `toml:"correct"`
+	Type    string   `toml:"type"`
+	Text    string   `toml:"text"`
+	Image   string   `toml:"image"`
+	Choices []string `toml:"choices"`
+	Correct int      `toml:"correct"`
 }
 
 func LoadConfig(configPath string) (*Config, error) {

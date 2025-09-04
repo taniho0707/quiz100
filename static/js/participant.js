@@ -150,6 +150,10 @@ class QuizParticipant {
                 this.showResults(message.data);
                 break;
                 
+            case 'state_changed':
+                this.handleStateChanged(message.data);
+                break;
+                
             default:
                 console.log('Unknown message type:', message.type);
         }
@@ -579,6 +583,65 @@ class QuizParticipant {
         } catch (error) {
             console.error('Reset session error:', error);
             this.showMessage('セッション破棄中にエラーが発生しました');
+        }
+    }
+
+    handleStateChanged(data) {
+        console.log('State changed:', data.new_state);
+        
+        // Handle state-specific transitions
+        switch (data.new_state) {
+            case 'waiting':
+            case 'started':
+            case 'title_display':
+            case 'team_assignment':
+                // Show waiting screen for these states
+                if (this.user) {
+                    this.showWaiting();
+                }
+                break;
+                
+            case 'question_active':
+                // Show question if data is provided
+                if (data.question && data.question_number) {
+                    const questionData = {
+                        question_number: data.question_number,
+                        question: data.question,
+                        total_questions: data.total_questions
+                    };
+                    this.showQuestion(questionData);
+                } else {
+                    // Keep current state if no question data
+                    console.log('Question active state but no question data provided');
+                }
+                break;
+                
+            case 'countdown_active':
+                // Disable choices and block answers during countdown
+                this.disableChoices();
+                break;
+                
+            case 'answer_stats':
+            case 'answer_reveal':
+                // Keep question displayed but ensure answers are blocked
+                this.disableChoices();
+                this.blockAnswers();
+                break;
+                
+            case 'results':
+            case 'celebration':
+                // Wait for actual results data via final_results message
+                break;
+                
+            case 'finished':
+                // Show waiting screen or keep current state
+                if (this.user) {
+                    this.showWaiting();
+                }
+                break;
+                
+            default:
+                console.log('Unhandled state:', data.new_state);
         }
     }
 

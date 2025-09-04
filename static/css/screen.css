@@ -457,6 +457,179 @@ body {
     }
 }
 
+/* Title Display Styles */
+.title-display {
+    text-align: center;
+    padding: 60px 40px;
+}
+
+.title-display .main-title {
+    font-size: 4rem;
+    font-weight: 700;
+    margin-bottom: 30px;
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.4);
+    animation: titleGlow 2s ease-in-out infinite alternate;
+}
+
+.title-display .welcome-message {
+    font-size: 1.5rem;
+    font-weight: 500;
+    opacity: 0.9;
+    animation: fadeInUp 1s ease-out 0.5s both;
+}
+
+/* Team Assignment Styles */
+.team-assignment-display {
+    text-align: center;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.team-assignment-display h2 {
+    font-size: 3rem;
+    margin-bottom: 40px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.teams-display {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.teams-display .team-item {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 15px;
+    padding: 25px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    animation: teamSlideIn 0.6s ease-out;
+}
+
+.teams-display .team-header h3 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: #FFD700;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.team-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.member-name {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+/* Answer Stats and Reveal Styles */
+.correct-rate-display {
+    background: rgba(76, 175, 80, 0.2);
+    border: 2px solid #4CAF50;
+    border-radius: 15px;
+    padding: 20px;
+    margin-top: 20px;
+    text-align: center;
+    animation: statsSlideIn 0.5s ease-out;
+}
+
+.correct-rate-display h3 {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    color: #4CAF50;
+}
+
+.correct-rate-display p {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+.choice-display.revealed {
+    animation: revealAnswer 1s ease-out;
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(76, 175, 80, 0.5);
+}
+
+/* Confetti Animation Styles */
+@keyframes confettiFall {
+    0% {
+        transform: translateX(0) translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(var(--end-x, 0)) translateY(var(--end-y, 100vh)) rotate(720deg);
+        opacity: 0;
+    }
+}
+
+@keyframes crackerShake {
+    0%, 100% { transform: translateY(-50%) rotate(0deg); }
+    25% { transform: translateY(-50%) rotate(-5deg); }
+    75% { transform: translateY(-50%) rotate(5deg); }
+}
+
+@keyframes titleGlow {
+    0% { text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 255, 255, 0.1); }
+    100% { text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.4), 0 0 30px rgba(255, 255, 255, 0.3); }
+}
+
+@keyframes fadeInUp {
+    0% {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    100% {
+        opacity: 0.9;
+        transform: translateY(0);
+    }
+}
+
+@keyframes teamSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateY(30px) scale(0.9);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes statsSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes revealAnswer {
+    0% {
+        transform: scale(1);
+        box-shadow: none;
+    }
+    50% {
+        transform: scale(1.1);
+        box-shadow: 0 0 40px rgba(76, 175, 80, 0.7);
+    }
+    100% {
+        transform: scale(1.05);
+        box-shadow: 0 0 30px rgba(76, 175, 80, 0.5);
+    }
+}
+
 @media (max-width: 768px) {
     .countdown-number-display {
         font-size: 8rem;
@@ -469,5 +642,21 @@ body {
     
     .time-up-text {
         font-size: 6rem;
+    }
+    
+    .title-display .main-title {
+        font-size: 2.5rem;
+    }
+    
+    .title-display .welcome-message {
+        font-size: 1.2rem;
+    }
+    
+    .team-assignment-display h2 {
+        font-size: 2rem;
+    }
+    
+    .teams-display {
+        grid-template-columns: 1fr;
     }
 }

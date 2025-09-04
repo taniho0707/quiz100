@@ -12,6 +12,7 @@ class QuizAdmin {
         this.setupEventListeners();
         this.connectWebSocket();
         this.loadStatus();
+        this.loadAvailableStates();
     }
 
     initializeElements() {
@@ -20,10 +21,14 @@ class QuizAdmin {
             connectionText: document.getElementById('connection-text'),
             
             startBtn: document.getElementById('start-btn'),
-            nextBtn: document.getElementById('next-btn'),
-            alertBtn: document.getElementById('alert-btn'),
-            stopBtn: document.getElementById('stop-btn'),
-            createTeamsBtn: document.getElementById('create-teams-btn'),
+            showTitleBtn: document.getElementById('show-title-btn'),
+            assignTeamsBtn: document.getElementById('assign-teams-btn'),
+            nextQuestionBtn: document.getElementById('next-question-btn'),
+            countdownAlertBtn: document.getElementById('countdown-alert-btn'),
+            showAnswerStatsBtn: document.getElementById('show-answer-stats-btn'),
+            revealAnswerBtn: document.getElementById('reveal-answer-btn'),
+            showResultsBtn: document.getElementById('show-results-btn'),
+            celebrationBtn: document.getElementById('celebration-btn'),
             
             eventStatus: document.getElementById('event-status'),
             currentQuestion: document.getElementById('current-question'),
@@ -36,16 +41,28 @@ class QuizAdmin {
             
             currentQuestionDisplay: document.getElementById('current-question-display'),
             answersDisplay: document.getElementById('answers-display'),
-            logDisplay: document.getElementById('log-display')
+            logDisplay: document.getElementById('log-display'),
+            
+            // Debug state jump elements
+            jumpStateSelect: document.getElementById('jump-state-select'),
+            jumpQuestionInput: document.getElementById('jump-question-input'),
+            jumpStateBtn: document.getElementById('jump-state-btn')
         };
     }
 
     setupEventListeners() {
-        this.elements.startBtn.addEventListener('click', () => this.startEvent());
-        this.elements.nextBtn.addEventListener('click', () => this.nextQuestion());
-        this.elements.alertBtn.addEventListener('click', () => this.sendAlert());
-        this.elements.stopBtn.addEventListener('click', () => this.stopEvent());
-        this.elements.createTeamsBtn.addEventListener('click', () => this.createTeams());
+        this.elements.startBtn.addEventListener('click', () => this.executeAction('start_event'));
+        this.elements.showTitleBtn.addEventListener('click', () => this.executeAction('show_title'));
+        this.elements.assignTeamsBtn.addEventListener('click', () => this.executeAction('assign_teams'));
+        this.elements.nextQuestionBtn.addEventListener('click', () => this.executeAction('next_question'));
+        this.elements.countdownAlertBtn.addEventListener('click', () => this.executeAction('countdown_alert'));
+        this.elements.showAnswerStatsBtn.addEventListener('click', () => this.executeAction('show_answer_stats'));
+        this.elements.revealAnswerBtn.addEventListener('click', () => this.executeAction('reveal_answer'));
+        this.elements.showResultsBtn.addEventListener('click', () => this.executeAction('show_results'));
+        this.elements.celebrationBtn.addEventListener('click', () => this.executeAction('celebration'));
+        
+        // Debug state jump listener
+        this.elements.jumpStateBtn.addEventListener('click', () => this.handleStateJump());
     }
 
     connectWebSocket() {
@@ -200,7 +217,7 @@ class QuizAdmin {
     }
 
     async nextQuestion() {
-        this.elements.nextBtn.disabled = true;
+        this.elements.nextQuestionBtn.disabled = true;
         
         try {
             const response = await fetch('/api/admin/next', {
@@ -231,12 +248,12 @@ class QuizAdmin {
             alert('次の問題の開始に失敗しました: ' + error.message);
             this.addLog(`次の問題開始エラー: ${error.message}`, 'error');
         } finally {
-            this.elements.nextBtn.disabled = false;
+            this.elements.nextQuestionBtn.disabled = false;
         }
     }
 
     async sendAlert() {
-        this.elements.alertBtn.disabled = true;
+        this.elements.countdownAlertBtn.disabled = true;
         
         try {
             const response = await fetch('/api/admin/alert', {
@@ -259,7 +276,7 @@ class QuizAdmin {
             this.addLog(`アラート送信エラー: ${error.message}`, 'error');
         } finally {
             setTimeout(() => {
-                this.elements.alertBtn.disabled = false;
+                this.elements.countdownAlertBtn.disabled = false;
             }, 2000); // 2秒間無効にして連打を防ぐ
         }
     }
@@ -353,9 +370,112 @@ class QuizAdmin {
                     this.elements.totalQuestions.textContent = 
                         data.config.questions?.length || '-';
                 }
+                
+                // Load available actions and update button states
+                this.loadAvailableActions();
             }
         } catch (error) {
             console.error('Error loading status:', error);
+        }
+    }
+
+    async loadAvailableActions() {
+        try {
+            const response = await fetch('/api/admin/actions');
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.updateButtonStates(data.available_actions || []);
+            }
+        } catch (error) {
+            console.error('Error loading available actions:', error);
+        }
+    }
+
+    updateButtonStates(availableActions) {
+        const buttonMap = {
+            'start_event': this.elements.startBtn,
+            'show_title': this.elements.showTitleBtn,
+            'assign_teams': this.elements.assignTeamsBtn,
+            'next_question': this.elements.nextQuestionBtn,
+            'countdown_alert': this.elements.countdownAlertBtn,
+            'show_answer_stats': this.elements.showAnswerStatsBtn,
+            'reveal_answer': this.elements.revealAnswerBtn,
+            'show_results': this.elements.showResultsBtn,
+            'celebration': this.elements.celebrationBtn
+        };
+
+        // すべてのボタンを無効にし、利用可能なもののみ有効にする
+        Object.values(buttonMap).forEach(button => {
+            if (button) button.disabled = true;
+        });
+
+        availableActions.forEach(action => {
+            const button = buttonMap[action];
+            if (button) {
+                button.disabled = false;
+            }
+        });
+
+        // チーム分けボタンの表示制御
+        if (this.elements.assignTeamsBtn) {
+            this.elements.assignTeamsBtn.style.display = 
+                availableActions.includes('assign_teams') ? 'inline-block' : 'none';
+        }
+    }
+
+    async executeAction(action) {
+        try {
+            const response = await fetch('/api/admin/action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: action })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.addLog(data.message || `${action} を実行しました`, 'success');
+                
+                // 状態更新とボタン制御を再読み込み
+                this.loadAvailableActions();
+                
+                // 必要に応じて特定の更新処理
+                switch(action) {
+                    case 'next_question':
+                        this.currentQuestion = data.question_data;
+                        this.answers.clear();
+                        this.updateQuestionDisplay();
+                        this.updateAnswersDisplay();
+                        break;
+                    case 'assign_teams':
+                        if (data.teams) {
+                            data.teams.forEach(team => {
+                                this.teams.set(team.id, team);
+                            });
+                            this.updateTeamsDisplay();
+                        }
+                        break;
+                    case 'show_results':
+                        if (data.results) {
+                            this.displayFinalResults(data.results);
+                        }
+                        break;
+                }
+                
+                if (data.event) {
+                    this.currentEvent = data.event;
+                    this.updateEventStatus();
+                }
+            } else {
+                throw new Error(data.error || `Failed to execute ${action}`);
+            }
+        } catch (error) {
+            console.error(`Error executing ${action}:`, error);
+            alert(`${action}の実行に失敗しました: ${error.message}`);
+            this.addLog(`${action}実行エラー: ${error.message}`, 'error');
         }
     }
 
@@ -364,9 +484,8 @@ class QuizAdmin {
             this.elements.eventStatus.textContent = '待機中';
             this.elements.currentQuestion.textContent = '-';
             this.elements.startBtn.disabled = false;
-            this.elements.nextBtn.disabled = true;
-            this.elements.alertBtn.disabled = true;
-            this.elements.stopBtn.disabled = true;
+            this.elements.nextQuestionBtn.disabled = true;
+            this.elements.countdownAlertBtn.disabled = true;
             return;
         }
 
@@ -377,9 +496,8 @@ class QuizAdmin {
         this.elements.currentQuestion.textContent = this.currentEvent.current_question || 0;
         
         this.elements.startBtn.disabled = this.currentEvent.status === 'started';
-        this.elements.nextBtn.disabled = this.currentEvent.status !== 'started';
-        this.elements.alertBtn.disabled = this.currentEvent.status !== 'started';
-        this.elements.stopBtn.disabled = this.currentEvent.status !== 'started';
+        this.elements.nextQuestionBtn.disabled = this.currentEvent.status !== 'started';
+        this.elements.countdownAlertBtn.disabled = this.currentEvent.status !== 'started';
     }
 
     updateParticipants(users) {
@@ -600,6 +718,101 @@ class QuizAdmin {
         } else {
             this.elements.connectionStatus.className = 'status-indicator disconnected';
             this.elements.connectionText.textContent = '接続中...';
+        }
+    }
+
+    async loadAvailableStates() {
+        try {
+            const response = await fetch('/api/admin/available-states');
+            if (response.ok) {
+                const data = await response.json();
+                this.populateStateOptions(data.available_states);
+                this.updateCurrentStateDisplay(data.current_state);
+            }
+        } catch (error) {
+            console.error('Failed to load available states:', error);
+        }
+    }
+
+    populateStateOptions(states) {
+        const select = this.elements.jumpStateSelect;
+        select.innerHTML = '<option value="">状態を選択...</option>';
+        
+        states.forEach(state => {
+            const option = document.createElement('option');
+            option.value = state.value;
+            option.textContent = state.label;
+            select.appendChild(option);
+        });
+    }
+
+    updateCurrentStateDisplay(currentState) {
+        // Update the event status display with Japanese translation
+        const stateLabels = {
+            'waiting': '参加者待ち',
+            'started': 'イベント開始',
+            'title_display': 'タイトル表示',
+            'team_assignment': 'チーム分け',
+            'question_active': '問題表示中',
+            'countdown_active': 'カウントダウン中',
+            'answer_stats': '回答状況表示',
+            'answer_reveal': '回答発表',
+            'results': '結果発表',
+            'celebration': 'お疲れ様画面',
+            'finished': '終了'
+        };
+        
+        this.elements.eventStatus.textContent = stateLabels[currentState] || currentState;
+    }
+
+    async handleStateJump() {
+        const selectedState = this.elements.jumpStateSelect.value;
+        const questionNumber = this.elements.jumpQuestionInput.value;
+
+        if (!selectedState) {
+            alert('ステートを選択してください');
+            return;
+        }
+
+        // Show confirmation dialog
+        const confirmMessage = questionNumber ? 
+            `ステート '${selectedState}' (問題${questionNumber}) にジャンプしますか？\n\n⚠️ これはデバッグ機能です。予期しない動作が発生する可能性があります。` :
+            `ステート '${selectedState}' にジャンプしますか？\n\n⚠️ これはデバッグ機能です。予期しない動作が発生する可能性があります。`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+
+        try {
+            const requestBody = { state: selectedState };
+            if (questionNumber && questionNumber.trim() !== '') {
+                requestBody.question_number = parseInt(questionNumber);
+            }
+
+            const response = await fetch('/api/admin/jump-state', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.addLog(result.message, 'warning');
+                this.updateCurrentStateDisplay(result.new_state);
+                this.loadAvailableActions(); // Refresh button states
+                
+                // Clear form
+                this.elements.jumpStateSelect.value = '';
+                this.elements.jumpQuestionInput.value = '';
+            } else {
+                const error = await response.json();
+                this.addLog(`ステートジャンプエラー: ${error.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('State jump failed:', error);
+            this.addLog('ステートジャンプに失敗しました', 'error');
         }
     }
 }

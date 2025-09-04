@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -453,4 +454,170 @@ func (r *EmojiReactionRepository) DeleteReactionsByUserID(userID int) error {
 	query := `DELETE FROM emoji_reactions WHERE user_id = ?`
 	_, err := r.db.Exec(query, userID)
 	return err
+}
+
+// Event State Management System
+type EventState string
+
+const (
+	StateWaiting         EventState = "waiting"
+	StateStarted         EventState = "started"
+	StateTitleDisplay    EventState = "title_display"
+	StateTeamAssignment  EventState = "team_assignment"
+	StateQuestionActive  EventState = "question_active"
+	StateCountdownActive EventState = "countdown_active"
+	StateAnswerStats     EventState = "answer_stats"
+	StateAnswerReveal    EventState = "answer_reveal"
+	StateResults         EventState = "results"
+	StateCelebration     EventState = "celebration"
+	StateFinished        EventState = "finished"
+)
+
+type EventStateManager struct {
+	currentState     EventState
+	currentQuestion  int
+	totalQuestions   int
+	teamMode         bool
+	validTransitions map[EventState][]EventState
+}
+
+func NewEventStateManager(teamMode bool, totalQuestions int) *EventStateManager {
+	esm := &EventStateManager{
+		currentState:    StateWaiting,
+		currentQuestion: 0,
+		totalQuestions:  totalQuestions,
+		teamMode:        teamMode,
+	}
+
+	esm.initValidTransitions()
+	return esm
+}
+
+func (esm *EventStateManager) initValidTransitions() {
+	esm.validTransitions = map[EventState][]EventState{
+		StateWaiting:         {StateStarted},
+		StateStarted:         {StateTitleDisplay},
+		StateTitleDisplay:    {StateTeamAssignment, StateQuestionActive},
+		StateTeamAssignment:  {StateQuestionActive},
+		StateQuestionActive:  {StateCountdownActive},
+		StateCountdownActive: {StateAnswerStats},
+		StateAnswerStats:     {StateAnswerReveal},
+		StateAnswerReveal:    {StateQuestionActive, StateResults},
+		StateResults:         {StateCelebration},
+		StateCelebration:     {StateFinished},
+		StateFinished:        {},
+	}
+
+	// チーム戦でない場合はチーム分け状態をスキップ
+	if !esm.teamMode {
+		esm.validTransitions[StateTitleDisplay] = []EventState{StateQuestionActive}
+	}
+}
+
+func (esm *EventStateManager) GetCurrentState() EventState {
+	return esm.currentState
+}
+
+func (esm *EventStateManager) GetCurrentQuestion() int {
+	return esm.currentQuestion
+}
+
+func (esm *EventStateManager) SetCurrentQuestion(questionNumber int) error {
+	if questionNumber < 0 || questionNumber > esm.totalQuestions {
+		return fmt.Errorf("invalid question number: %d (valid range: 0-%d)", questionNumber, esm.totalQuestions)
+	}
+	esm.currentQuestion = questionNumber
+	return nil
+}
+
+func (esm *EventStateManager) CanTransitionTo(targetState EventState) bool {
+	validStates, exists := esm.validTransitions[esm.currentState]
+	if !exists {
+		return false
+	}
+
+	for _, validState := range validStates {
+		if validState == targetState {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (esm *EventStateManager) TransitionTo(targetState EventState) error {
+	if !esm.CanTransitionTo(targetState) {
+		return fmt.Errorf("invalid transition from %s to %s", esm.currentState, targetState)
+	}
+
+	esm.currentState = targetState
+	return nil
+}
+
+// JumpToState allows jumping to any state without transition validation (for admin use)
+func (esm *EventStateManager) JumpToState(targetState EventState) error {
+	// Validate that the target state exists
+	validStates := []EventState{
+		StateWaiting, StateStarted, StateTitleDisplay, StateTeamAssignment,
+		StateQuestionActive, StateCountdownActive, StateAnswerStats,
+		StateAnswerReveal, StateResults, StateCelebration, StateFinished,
+	}
+
+	for _, validState := range validStates {
+		if validState == targetState {
+			esm.currentState = targetState
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid state: %s", targetState)
+}
+
+func (esm *EventStateManager) NextQuestion() error {
+	if esm.currentState != StateAnswerReveal && esm.currentState != StateTeamAssignment {
+		return fmt.Errorf("cannot advance question from state %s", esm.currentState)
+	}
+
+	if esm.currentQuestion >= esm.totalQuestions {
+		// 最後の問題なので結果発表へ
+		return esm.TransitionTo(StateResults)
+	}
+
+	esm.currentQuestion++
+	return esm.TransitionTo(StateQuestionActive)
+}
+
+func (esm *EventStateManager) GetAvailableActions() []string {
+	switch esm.currentState {
+	case StateWaiting:
+		return []string{"start_event"}
+	case StateStarted:
+		return []string{"show_title"}
+	case StateTitleDisplay:
+		if esm.teamMode {
+			return []string{"assign_teams"}
+		}
+		return []string{"next_question"}
+	case StateTeamAssignment:
+		return []string{"next_question"}
+	case StateQuestionActive:
+		return []string{"countdown_alert"}
+	case StateCountdownActive:
+		return []string{"show_answer_stats"}
+	case StateAnswerStats:
+		return []string{"reveal_answer"}
+	case StateAnswerReveal:
+		if esm.currentQuestion >= esm.totalQuestions {
+			return []string{"show_results"}
+		}
+		return []string{"next_question"}
+	case StateResults:
+		return []string{"celebration"}
+	case StateCelebration:
+		return []string{} // 自動遷移
+	case StateFinished:
+		return []string{}
+	default:
+		return []string{}
+	}
 }

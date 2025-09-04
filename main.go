@@ -70,6 +70,14 @@ func main() {
 			admin.POST("/teams", handler.AdminCreateTeams)
 			admin.GET("/teams", handler.GetTeams)
 			admin.GET("/debug", handler.DebugInfo)
+
+			// New State-Based Action System
+			admin.POST("/action", handler.AdminAction)
+			admin.GET("/actions", handler.GetAvailableActions)
+
+			// Debug State Jump System
+			admin.POST("/jump-state", handler.AdminJumpState)
+			admin.GET("/available-states", handler.GetAvailableStates)
 		}
 
 		screen := api.Group("/screen")

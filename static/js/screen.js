@@ -94,15 +94,20 @@ class QuizScreen {
                 this.handleEventStarted(message.data);
                 break;
                 
+            case 'title_display':
+                this.handleTitleDisplay(message.data);
+                break;
+                
+            case 'team_assignment':
+                this.handleTeamAssignment(message.data);
+                break;
+                
             case 'question_start':
                 this.handleQuestionStart(message.data);
                 break;
                 
             case 'answer_received':
                 this.handleAnswerReceived(message.data);
-                break;
-                
-            case 'time_alert': // FIXME: 消したい
                 break;
                 
             case 'countdown':
@@ -114,12 +119,28 @@ class QuizScreen {
                 this.blockAnswers();
                 break;
                 
+            case 'answer_stats':
+                this.handleAnswerStats(message.data);
+                break;
+                
+            case 'answer_reveal':
+                this.handleAnswerReveal(message.data);
+                break;
+                
             case 'final_results':
                 this.handleFinalResults(message.data);
                 break;
                 
+            case 'celebration':
+                this.handleCelebration(message.data);
+                break;
+                
             case 'emoji':
                 this.handleEmojiReaction(message.data);
+                break;
+                
+            case 'state_changed':
+                this.handleStateChanged(message.data);
                 break;
                 
             default:
@@ -161,6 +182,26 @@ class QuizScreen {
             // 個人戦の場合は従来通り
             this.displayFinalResults(data.results);
         }
+    }
+
+    handleTitleDisplay(data) {
+        this.showTitleScreen();
+    }
+
+    handleTeamAssignment(data) {
+        this.showTeamAssignmentScreen(data.teams);
+    }
+
+    handleAnswerStats(data) {
+        this.showAnswerStatsScreen(data);
+    }
+
+    handleAnswerReveal(data) {
+        this.showAnswerRevealScreen(data);
+    }
+
+    handleCelebration(data) {
+        this.showCelebrationScreen();
     }
 
     handleEmojiReaction(data) {
@@ -240,6 +281,12 @@ class QuizScreen {
         this.elements.waitingScreen.classList.add('hidden');
         this.elements.questionScreen.classList.add('hidden');
         this.elements.resultsScreen.classList.add('hidden');
+        
+        // 動的に作成された画面も非表示
+        const titleScreen = document.getElementById('title-screen');
+        const teamScreen = document.getElementById('team-assignment-screen');
+        if (titleScreen) titleScreen.classList.add('hidden');
+        if (teamScreen) teamScreen.classList.add('hidden');
     }
 
     displayQuestion(questionData) {
@@ -441,10 +488,317 @@ class QuizScreen {
         }, 3000);
     }
     
+    showTitleScreen() {
+        this.hideAllScreens();
+        // Create or show title display screen
+        let titleScreen = document.getElementById('title-screen');
+        if (!titleScreen) {
+            titleScreen = document.createElement('div');
+            titleScreen.id = 'title-screen';
+            titleScreen.className = 'screen-section';
+            titleScreen.innerHTML = `
+                <div class="title-display">
+                    <h1 class="main-title">${this.elements.eventTitle.textContent}</h1>
+                    <p class="welcome-message">🎉 クイズ大会へようこそ！</p>
+                </div>
+            `;
+            document.querySelector('.screen-content').appendChild(titleScreen);
+        }
+        titleScreen.classList.remove('hidden');
+        this.elements.questionStatus.textContent = 'タイトル表示中';
+    }
+
+    showTeamAssignmentScreen(teams) {
+        this.hideAllScreens();
+        // Create or show team assignment screen
+        let teamScreen = document.getElementById('team-assignment-screen');
+        if (!teamScreen) {
+            teamScreen = document.createElement('div');
+            teamScreen.id = 'team-assignment-screen';
+            teamScreen.className = 'screen-section';
+            teamScreen.innerHTML = `
+                <div class="team-assignment-display">
+                    <h2>🏆 チーム発表</h2>
+                    <div id="team-assignment-list" class="teams-display">
+                        <!-- チーム一覧がここに表示されます -->
+                    </div>
+                </div>
+            `;
+            document.querySelector('.screen-content').appendChild(teamScreen);
+        }
+        
+        const teamList = teamScreen.querySelector('#team-assignment-list');
+        teamList.innerHTML = '';
+        
+        teams.forEach((team, index) => {
+            const teamDiv = document.createElement('div');
+            teamDiv.className = 'team-item';
+            teamDiv.innerHTML = `
+                <div class="team-header">
+                    <h3>${team.name}</h3>
+                </div>
+                <div class="team-members">
+                    ${team.members.map(member => `
+                        <div class="member-name">${member.nickname}</div>
+                    `).join('')}
+                </div>
+            `;
+            teamList.appendChild(teamDiv);
+        });
+        
+        teamScreen.classList.remove('hidden');
+        this.elements.questionStatus.textContent = 'チーム発表中';
+    }
+
+    showAnswerStatsScreen(data) {
+        // この情報を問題画面に重ねて表示
+        this.elements.questionScreen.classList.remove('hidden');
+        
+        // 回答状況表示を更新
+        const progressFill = this.elements.progressFill;
+        const answerCount = this.elements.answerCount;
+        
+        const progress = data.total_participants > 0 ? 
+            (data.answered_count / data.total_participants) * 100 : 0;
+        
+        progressFill.style.width = `${progress}%`;
+        answerCount.textContent = `${data.answered_count} / ${data.total_participants} 回答済み`;
+        
+        // 正解率も表示
+        if (!document.getElementById('correct-rate-display')) {
+            const correctRateDiv = document.createElement('div');
+            correctRateDiv.id = 'correct-rate-display';
+            correctRateDiv.className = 'correct-rate-display';
+            correctRateDiv.innerHTML = `
+                <h3>📊 正解率: ${Math.round(data.correct_rate)}%</h3>
+                <p>正解者: ${data.correct_count}人 / 回答者: ${data.answered_count}人</p>
+            `;
+            this.elements.answerStats.appendChild(correctRateDiv);
+        } else {
+            const correctRateDiv = document.getElementById('correct-rate-display');
+            correctRateDiv.innerHTML = `
+                <h3>📊 正解率: ${Math.round(data.correct_rate)}%</h3>
+                <p>正解者: ${data.correct_count}人 / 回答者: ${data.answered_count}人</p>
+            `;
+        }
+        
+        this.elements.questionStatus.textContent = '回答状況表示中';
+    }
+
+    showAnswerRevealScreen(data) {
+        // 問題画面で正解をハイライト表示
+        this.elements.questionScreen.classList.remove('hidden');
+        
+        const choices = this.elements.choicesDisplay.querySelectorAll('.choice-display');
+        choices.forEach((choice, index) => {
+            choice.classList.remove('correct', 'revealed');
+            // data.correct_indexは1ベースなので、0ベースに調整して比較
+            if ((index + 1) === data.correct_index) {
+                choice.classList.add('correct', 'revealed');
+            }
+        });
+        
+        // 正解率表示を非表示
+        const correctRateDiv = document.getElementById('correct-rate-display');
+        if (correctRateDiv) {
+            correctRateDiv.remove();
+        }
+        
+        this.elements.questionStatus.textContent = '正解発表中';
+    }
+
+    showCelebrationScreen() {
+        this.hideAllScreens();
+        // 結果画面を表示してクラッカーアニメーション開始
+        this.elements.resultsScreen.classList.remove('hidden');
+        this.startConfettiAnimation();
+        this.elements.questionStatus.textContent = '🎉 お疲れ様でした！';
+    }
+
+    startConfettiAnimation() {
+        // 左右のクラッカーを作成
+        const leftCracker = this.createCracker('left');
+        const rightCracker = this.createCracker('right');
+        
+        document.body.appendChild(leftCracker);
+        document.body.appendChild(rightCracker);
+        
+        // 紙吹雪アニメーション開始
+        setTimeout(() => {
+            this.createConfetti('left');
+            this.createConfetti('right');
+        }, 500);
+        
+        // 5秒後にクリーンアップ
+        setTimeout(() => {
+            leftCracker.remove();
+            rightCracker.remove();
+            this.clearConfetti();
+        }, 5000);
+    }
+
+    createCracker(side) {
+        const cracker = document.createElement('div');
+        cracker.className = `cracker cracker-${side}`;
+        cracker.style.cssText = `
+            position: fixed;
+            ${side}: 20px;
+            top: 50%;
+            width: 60px;
+            height: 120px;
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            border-radius: 10px 10px 30px 30px;
+            z-index: 1000;
+            transform: translateY(-50%);
+            animation: crackerShake 0.5s ease-in-out;
+        `;
+        return cracker;
+    }
+
+    createConfetti(side) {
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#FFD93D'];
+        const startX = side === 'left' ? 50 : window.innerWidth - 50;
+        
+        for (let i = 0; i < 50; i++) {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.cssText = `
+                position: fixed;
+                left: ${startX}px;
+                top: 50%;
+                width: 10px;
+                height: 10px;
+                background: ${colors[Math.floor(Math.random() * colors.length)]};
+                border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
+                z-index: 999;
+                pointer-events: none;
+                animation: confettiFall ${2 + Math.random() * 3}s linear forwards;
+                animation-delay: ${Math.random() * 2}s;
+                transform: rotate(${Math.random() * 360}deg);
+            `;
+            
+            // ランダムな方向に飛ばす
+            const angle = (side === 'left' ? 0.3 : 2.8) + (Math.random() - 0.5) * 0.8;
+            const velocity = 100 + Math.random() * 200;
+            const endX = startX + Math.cos(angle) * velocity;
+            const endY = window.innerHeight + 100;
+            
+            confetti.style.setProperty('--end-x', `${endX}px`);
+            confetti.style.setProperty('--end-y', `${endY}px`);
+            
+            document.body.appendChild(confetti);
+        }
+    }
+
+    clearConfetti() {
+        document.querySelectorAll('.confetti').forEach(confetti => confetti.remove());
+    }
+
     blockAnswers() {
         this.answersBlocked = true;
         // No direct action needed here since this is the screen display
         // The participant.js handles answer blocking
+    }
+
+    handleStateChanged(data) {
+        console.log('State changed:', data.new_state);
+        
+        // Update question status display with Japanese labels
+        const stateLabels = {
+            'waiting': '参加者待ち',
+            'started': 'イベント開始',
+            'title_display': 'タイトル表示',
+            'team_assignment': 'チーム分け',
+            'question_active': '問題表示中',
+            'countdown_active': 'カウントダウン中',
+            'answer_stats': '回答状況表示',
+            'answer_reveal': '回答発表',
+            'results': '結果発表',
+            'celebration': 'お疲れ様画面',
+            'finished': '終了'
+        };
+        
+        this.elements.questionStatus.textContent = stateLabels[data.new_state] || data.new_state;
+        
+        // Handle state-specific transitions
+        switch (data.new_state) {
+            case 'waiting':
+                this.showWaitingScreen();
+                break;
+                
+            case 'title_display':
+                this.handleTitleDisplay({ title: this.elements.eventTitle.textContent });
+                break;
+                
+            case 'team_assignment':
+                // Trigger team display if teams exist
+                this.loadStatus(); // This will reload teams
+                break;
+                
+            case 'question_active':
+                if (data.question) {
+                    // Set current question and display it
+                    this.currentQuestion = {
+                        question_number: data.question_number,
+                        question: data.question,
+                        total_questions: data.total_questions
+                    };
+                    this.handleQuestionStart(this.currentQuestion);
+                } else if (data.current_question > 0) {
+                    // Load question from API if not provided
+                    this.loadQuestionFromAPI(data.current_question);
+                }
+                break;
+                
+            case 'countdown_active':
+                // Countdown will be handled by separate countdown messages
+                break;
+                
+            case 'answer_stats':
+                this.hideAllScreens();
+                this.elements.answerStats.style.display = 'block';
+                break;
+                
+            case 'answer_reveal':
+                // Show question screen with answer revealed
+                if (this.currentQuestion) {
+                    this.showQuestionScreen();
+                }
+                break;
+                
+            case 'results':
+                this.handleFinalResults({ results: [], teams: [], team_mode: false });
+                break;
+                
+            case 'celebration':
+                this.handleCelebration({});
+                break;
+                
+            case 'finished':
+                this.showWaitingScreen();
+                this.elements.questionStatus.textContent = '終了';
+                break;
+        }
+    }
+
+    async loadQuestionFromAPI(questionNumber) {
+        try {
+            const response = await fetch('/api/status');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.config && data.config.questions && questionNumber <= data.config.questions.length) {
+                    const question = data.config.questions[questionNumber - 1];
+                    this.currentQuestion = {
+                        question_number: questionNumber,
+                        question: question,
+                        total_questions: data.config.questions.length
+                    };
+                    this.handleQuestionStart(this.currentQuestion);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load question from API:', error);
+        }
     }
 
     updateConnectionStatus(connected) {

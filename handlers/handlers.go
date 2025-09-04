@@ -29,7 +29,9 @@ type Handler struct {
 	teamAssignmentSvc *models.TeamAssignmentService
 	logger            *models.QuizLogger
 
-	currentEvent *models.Event
+	currentEvent    *models.Event
+	stateManager    *models.EventStateManager
+	currentQuestion *models.Question
 }
 
 type JoinRequest struct {
@@ -49,9 +51,16 @@ type AdminRequest struct {
 	Action string `json:"action" binding:"required"`
 }
 
+type JumpStateRequest struct {
+	State          string `json:"state" binding:"required"`
+	QuestionNumber *int   `json:"question_number,omitempty"`
+}
+
 func NewHandler(db *database.Database, hub *websocket.Hub, config *models.Config, logger *models.QuizLogger) *Handler {
 	userRepo := models.NewUserRepository(db.DB)
 	teamRepo := models.NewTeamRepository(db.DB)
+
+	stateManager := models.NewEventStateManager(config.Event.TeamMode, len(config.Questions))
 
 	return &Handler{
 		db:                db,
@@ -64,6 +73,7 @@ func NewHandler(db *database.Database, hub *websocket.Hub, config *models.Config
 		emojiReactionRepo: models.NewEmojiReactionRepository(db.DB),
 		teamAssignmentSvc: models.NewTeamAssignmentService(userRepo, teamRepo, config),
 		logger:            logger,
+		stateManager:      stateManager,
 	}
 }
 
@@ -726,4 +736,510 @@ func (h *Handler) DebugInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, debugInfo)
+}
+
+// New State-Based Admin Action System
+func (h *Handler) AdminAction(c *gin.Context) {
+	var req AdminRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	switch req.Action {
+	case "start_event":
+		h.handleStartEvent(c)
+	case "show_title":
+		h.handleShowTitle(c)
+	case "assign_teams":
+		h.handleAssignTeams(c)
+	case "next_question":
+		h.handleNextQuestion(c)
+	case "countdown_alert":
+		h.handleCountdownAlert(c)
+	case "show_answer_stats":
+		h.handleShowAnswerStats(c)
+	case "reveal_answer":
+		h.handleRevealAnswer(c)
+	case "show_results":
+		h.handleShowResults(c)
+	case "celebration":
+		h.handleCelebration(c)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action"})
+	}
+}
+
+func (h *Handler) GetAvailableActions(c *gin.Context) {
+	actions := h.stateManager.GetAvailableActions()
+	c.JSON(http.StatusOK, gin.H{
+		"available_actions": actions,
+		"current_state":     h.stateManager.GetCurrentState(),
+		"current_question":  h.stateManager.GetCurrentQuestion(),
+	})
+}
+
+func (h *Handler) handleStartEvent(c *gin.Context) {
+	if err := h.stateManager.TransitionTo(models.StateStarted); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	event, err := h.eventRepo.CreateEvent(h.config.Event.Title, h.config.Event.TeamMode, h.config.Event.TeamSize, h.config.Event.QrCode)
+	if err != nil {
+		h.logger.LogError("creating event", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create event"})
+		return
+	}
+
+	h.currentEvent = event
+	h.logger.LogEventStart(h.config.Event.Title, h.config.Event.TeamMode, 0)
+
+	message := websocket.Message{
+		Type: "event_started",
+		Data: gin.H{
+			"event": h.currentEvent,
+			"title": h.config.Event.Title,
+			"state": h.stateManager.GetCurrentState(),
+		},
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.Broadcast <- messageBytes
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "イベントを開始しました",
+		"event":   h.currentEvent,
+		"state":   h.stateManager.GetCurrentState(),
+	})
+}
+
+func (h *Handler) handleShowTitle(c *gin.Context) {
+	if err := h.stateManager.TransitionTo(models.StateTitleDisplay); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	message := websocket.Message{
+		Type: "title_display",
+		Data: gin.H{
+			"title": h.config.Event.Title,
+			"state": h.stateManager.GetCurrentState(),
+		},
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.BroadcastToType(messageBytes, websocket.ClientTypeScreen)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "タイトルを表示しました",
+		"state":   h.stateManager.GetCurrentState(),
+	})
+}
+
+func (h *Handler) handleAssignTeams(c *gin.Context) {
+	if err := h.stateManager.TransitionTo(models.StateTeamAssignment); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	teams, err := h.teamAssignmentSvc.CreateTeamsAndAssignUsers()
+	if err != nil {
+		h.logger.LogError("creating teams", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create teams"})
+		return
+	}
+
+	message := websocket.Message{
+		Type: "team_assignment",
+		Data: gin.H{
+			"teams": teams,
+			"state": h.stateManager.GetCurrentState(),
+		},
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.Broadcast <- messageBytes
+
+	h.logger.LogTeamAssignment(len(teams), h.getTotalUsersInTeams(teams))
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "チーム分けを実行しました",
+		"teams":   teams,
+		"state":   h.stateManager.GetCurrentState(),
+	})
+}
+
+func (h *Handler) handleNextQuestion(c *gin.Context) {
+	if err := h.stateManager.NextQuestion(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	questionNum := h.stateManager.GetCurrentQuestion()
+	if questionNum > len(h.config.Questions) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No more questions"})
+		return
+	}
+
+	question := h.config.Questions[questionNum-1]
+	h.currentQuestion = &question
+
+	if h.currentEvent != nil {
+		err := h.eventRepo.UpdateCurrentQuestion(h.currentEvent.ID, questionNum)
+		if err != nil {
+			h.logger.LogError("updating current question", err)
+		} else {
+			h.currentEvent.CurrentQuestion = questionNum
+		}
+	}
+
+	h.logger.LogQuestionStart(questionNum, question.Text)
+
+	message := websocket.Message{
+		Type: "question_start",
+		Data: gin.H{
+			"question_number": questionNum,
+			"question":        question,
+			"total_questions": len(h.config.Questions),
+			"state":           h.stateManager.GetCurrentState(),
+		},
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.Broadcast <- messageBytes
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "次の問題を開始しました",
+		"question_data": message.Data,
+		"state":         h.stateManager.GetCurrentState(),
+	})
+}
+
+func (h *Handler) handleCountdownAlert(c *gin.Context) {
+	if err := h.stateManager.TransitionTo(models.StateCountdownActive); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	h.logger.LogAlert("5秒カウントダウン開始")
+	go h.startCountdownWithAutoTransition()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "5秒カウントダウンを開始しました",
+		"state":   h.stateManager.GetCurrentState(),
+	})
+}
+
+func (h *Handler) startCountdownWithAutoTransition() {
+	for i := 5; i >= 1; i-- {
+		message := websocket.Message{
+			Type: "countdown",
+			Data: gin.H{
+				"seconds_left": i,
+			},
+		}
+
+		messageBytes, _ := json.Marshal(message)
+		h.hub.BroadcastToType(messageBytes, websocket.ClientTypeScreen)
+
+		time.Sleep(1 * time.Second)
+	}
+
+	endMessage := websocket.Message{
+		Type: "question_end",
+		Data: gin.H{
+			"message": "Time's up!",
+		},
+	}
+
+	endMessageBytes, _ := json.Marshal(endMessage)
+	h.hub.Broadcast <- endMessageBytes
+
+	// 自動遷移
+	h.stateManager.TransitionTo(models.StateAnswerStats)
+}
+
+func (h *Handler) handleShowAnswerStats(c *gin.Context) {
+	// 既にStateAnswerStatsの場合はスキップ
+	if h.stateManager.GetCurrentState() != models.StateAnswerStats {
+		if err := h.stateManager.TransitionTo(models.StateAnswerStats); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	users, _ := h.userRepo.GetAllUsers()
+	answeredCount := 0
+	correctCount := 0
+	currentQuestionNum := h.stateManager.GetCurrentQuestion()
+
+	for _, user := range users {
+		answer, _ := h.answerRepo.GetAnswerByUserAndQuestion(user.ID, currentQuestionNum)
+		if answer != nil {
+			answeredCount++
+			if answer.IsCorrect {
+				correctCount++
+			}
+		}
+	}
+
+	message := websocket.Message{
+		Type: "answer_stats",
+		Data: gin.H{
+			"total_participants": len(users),
+			"answered_count":     answeredCount,
+			"correct_count":      correctCount,
+			"correct_rate":       float64(correctCount) / float64(max(answeredCount, 1)) * 100,
+			"state":              h.stateManager.GetCurrentState(),
+		},
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.BroadcastToType(messageBytes, websocket.ClientTypeScreen)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "回答状況を表示しました",
+		"state":   h.stateManager.GetCurrentState(),
+	})
+}
+
+func (h *Handler) handleRevealAnswer(c *gin.Context) {
+	if err := h.stateManager.TransitionTo(models.StateAnswerReveal); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.currentQuestion == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No current question"})
+		return
+	}
+
+	message := websocket.Message{
+		Type: "answer_reveal",
+		Data: gin.H{
+			"question":      h.currentQuestion,
+			"correct_index": h.currentQuestion.Correct,
+			"state":         h.stateManager.GetCurrentState(),
+		},
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.BroadcastToType(messageBytes, websocket.ClientTypeScreen)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "回答を発表しました",
+		"state":   h.stateManager.GetCurrentState(),
+	})
+}
+
+func (h *Handler) handleShowResults(c *gin.Context) {
+	if err := h.stateManager.TransitionTo(models.StateResults); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	users, err := h.userRepo.GetAllUsers()
+	if err != nil {
+		h.logger.LogError("getting final results", err)
+		users = []models.User{}
+	}
+
+	var teams []models.Team
+	if h.config.Event.TeamMode {
+		teams, err = h.teamAssignmentSvc.CalculateTeamScores()
+		if err != nil {
+			h.logger.LogError("calculating final team scores", err)
+			teams = []models.Team{}
+		}
+	}
+
+	message := websocket.Message{
+		Type: "final_results",
+		Data: gin.H{
+			"results":   users,
+			"teams":     teams,
+			"team_mode": h.config.Event.TeamMode,
+			"state":     h.stateManager.GetCurrentState(),
+		},
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.Broadcast <- messageBytes
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "結果を発表しました",
+		"results": users,
+		"teams":   teams,
+		"state":   h.stateManager.GetCurrentState(),
+	})
+}
+
+func (h *Handler) handleCelebration(c *gin.Context) {
+	if err := h.stateManager.TransitionTo(models.StateCelebration); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	message := websocket.Message{
+		Type: "celebration",
+		Data: gin.H{
+			"state": h.stateManager.GetCurrentState(),
+		},
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.BroadcastToType(messageBytes, websocket.ClientTypeScreen)
+
+	// 5秒後に自動的に終了状態に遷移
+	go func() {
+		time.Sleep(5 * time.Second)
+		h.stateManager.TransitionTo(models.StateFinished)
+
+		if h.currentEvent != nil {
+			h.eventRepo.UpdateEventStatus(h.currentEvent.ID, "finished")
+			h.currentEvent.Status = "finished"
+		}
+
+		users, _ := h.userRepo.GetAllUsers()
+		h.logger.LogEventEnd(h.config.Event.Title, len(users), len(h.config.Questions))
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "🎉 お疲れ様でした！",
+		"state":   h.stateManager.GetCurrentState(),
+	})
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// Admin State Jump API
+func (h *Handler) AdminJumpState(c *gin.Context) {
+	var req JumpStateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Convert string to EventState
+	var targetState models.EventState
+	switch req.State {
+	case "waiting":
+		targetState = models.StateWaiting
+	case "started":
+		targetState = models.StateStarted
+	case "title_display":
+		targetState = models.StateTitleDisplay
+	case "team_assignment":
+		targetState = models.StateTeamAssignment
+	case "question_active":
+		targetState = models.StateQuestionActive
+	case "countdown_active":
+		targetState = models.StateCountdownActive
+	case "answer_stats":
+		targetState = models.StateAnswerStats
+	case "answer_reveal":
+		targetState = models.StateAnswerReveal
+	case "results":
+		targetState = models.StateResults
+	case "celebration":
+		targetState = models.StateCelebration
+	case "finished":
+		targetState = models.StateFinished
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state: " + req.State})
+		return
+	}
+
+	// Set question number if provided
+	if req.QuestionNumber != nil {
+		if err := h.stateManager.SetCurrentQuestion(*req.QuestionNumber); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid question number: " + err.Error()})
+			return
+		}
+
+		// Also update current event if it exists
+		if h.currentEvent != nil {
+			err := h.eventRepo.UpdateCurrentQuestion(h.currentEvent.ID, *req.QuestionNumber)
+			if err != nil {
+				h.logger.LogError("updating current question in database", err)
+			} else {
+				h.currentEvent.CurrentQuestion = *req.QuestionNumber
+			}
+		}
+	}
+
+	// Perform state jump
+	if err := h.stateManager.JumpToState(targetState); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	logMessage := fmt.Sprintf("Admin jumped to state: %s", req.State)
+	if req.QuestionNumber != nil {
+		logMessage += fmt.Sprintf(" (question: %d)", *req.QuestionNumber)
+	}
+	h.logger.LogAlert(logMessage)
+
+	// Broadcast state change to all clients
+	message := websocket.Message{
+		Type: "state_changed",
+		Data: gin.H{
+			"new_state":        h.stateManager.GetCurrentState(),
+			"current_question": h.stateManager.GetCurrentQuestion(),
+			"jumped":           true,
+		},
+	}
+
+	// Add current question data if jumping to question-related state
+	if req.QuestionNumber != nil && *req.QuestionNumber > 0 && *req.QuestionNumber <= len(h.config.Questions) {
+		question := h.config.Questions[*req.QuestionNumber-1]
+		h.currentQuestion = &question
+		message.Data.(gin.H)["question"] = question
+		message.Data.(gin.H)["question_number"] = *req.QuestionNumber
+		message.Data.(gin.H)["total_questions"] = len(h.config.Questions)
+	}
+
+	messageBytes, _ := json.Marshal(message)
+	h.hub.Broadcast <- messageBytes
+
+	response := gin.H{
+		"message":          fmt.Sprintf("ステート '%s' にジャンプしました", req.State),
+		"new_state":        targetState,
+		"current_question": h.stateManager.GetCurrentQuestion(),
+	}
+
+	if req.QuestionNumber != nil {
+		response["message"] = fmt.Sprintf("ステート '%s' (問題%d) にジャンプしました", req.State, *req.QuestionNumber)
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// Get Available States for Jump
+func (h *Handler) GetAvailableStates(c *gin.Context) {
+	// Define all states with their Japanese display names
+	allStates := []gin.H{
+		{"value": "waiting", "label": "参加者待ち"},
+		{"value": "started", "label": "イベント開始"},
+		{"value": "title_display", "label": "タイトル表示"},
+		{"value": "team_assignment", "label": "チーム分け"},
+		{"value": "question_active", "label": "問題表示中"},
+		{"value": "countdown_active", "label": "カウントダウン中"},
+		{"value": "answer_stats", "label": "回答状況表示"},
+		{"value": "answer_reveal", "label": "回答発表"},
+		{"value": "results", "label": "結果発表"},
+		{"value": "celebration", "label": "お疲れ様画面"},
+		{"value": "finished", "label": "終了"},
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"available_states": allStates,
+		"current_state":    h.stateManager.GetCurrentState(),
+	})
 }

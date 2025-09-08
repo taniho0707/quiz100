@@ -457,21 +457,7 @@ func (r *EmojiReactionRepository) DeleteReactionsByUserID(userID int) error {
 }
 
 // Event State Management System
-type EventState string
-
-const (
-	StateWaiting         EventState = "waiting"
-	StateStarted         EventState = "started"
-	StateTitleDisplay    EventState = "title_display"
-	StateTeamAssignment  EventState = "team_assignment"
-	StateQuestionActive  EventState = "question_active"
-	StateCountdownActive EventState = "countdown_active"
-	StateAnswerStats     EventState = "answer_stats"
-	StateAnswerReveal    EventState = "answer_reveal"
-	StateResults         EventState = "results"
-	StateCelebration     EventState = "celebration"
-	StateFinished        EventState = "finished"
-)
+// Note: EventState constants are now defined in constants.go
 
 type EventStateManager struct {
 	currentState     EventState
@@ -556,21 +542,13 @@ func (esm *EventStateManager) TransitionTo(targetState EventState) error {
 
 // JumpToState allows jumping to any state without transition validation (for admin use)
 func (esm *EventStateManager) JumpToState(targetState EventState) error {
-	// Validate that the target state exists
-	validStates := []EventState{
-		StateWaiting, StateStarted, StateTitleDisplay, StateTeamAssignment,
-		StateQuestionActive, StateCountdownActive, StateAnswerStats,
-		StateAnswerReveal, StateResults, StateCelebration, StateFinished,
+	// Validate that the target state exists using the constants
+	if !IsValidState(targetState) {
+		return fmt.Errorf("invalid state: %s", targetState)
 	}
 
-	for _, validState := range validStates {
-		if validState == targetState {
-			esm.currentState = targetState
-			return nil
-		}
-	}
-
-	return fmt.Errorf("invalid state: %s", targetState)
+	esm.currentState = targetState
+	return nil
 }
 
 func (esm *EventStateManager) NextQuestion() error {

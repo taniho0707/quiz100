@@ -321,6 +321,24 @@ class QuizScreen {
         });
     }
 
+    showChoicesWithCounts(question, choicesCounts) {
+        if (!question || !choicesCounts) return;
+        
+        this.elements.choicesDisplay.innerHTML = '';
+        
+        question.Choices.forEach((choice, index) => {
+            const choiceDiv = document.createElement('div');
+            const count = choicesCounts[index] || 0;
+            choiceDiv.className = `choice-display choice-with-stats`;
+            choiceDiv.innerHTML = `
+                <span class="choice-letter">${String.fromCharCode(65 + index)}</span>
+                <span class="choice-text">${choice}</span>
+                <span class="choice-count">${count}人</span>
+            `;
+            this.elements.choicesDisplay.appendChild(choiceDiv);
+        });
+    }
+
     updateAnswerProgress() {
         if (!this.currentQuestion) return;
         
@@ -481,11 +499,13 @@ class QuizScreen {
     
     showTimeUp() {
         this.elements.timeUpDisplay.classList.remove('hidden');
+        this.elements.timeUpDisplay.classList.add('transparent-overlay');
         
-        // Hide after 3 seconds
+        // Hide after 5 seconds
         setTimeout(() => {
             this.elements.timeUpDisplay.classList.add('hidden');
-        }, 3000);
+            this.elements.timeUpDisplay.classList.remove('transparent-overlay');
+        }, 5000);
     }
     
     showTitleScreen() {
@@ -554,6 +574,15 @@ class QuizScreen {
         // この情報を問題画面に重ねて表示
         this.elements.questionScreen.classList.remove('hidden');
         
+        // 問題情報を表示（まだ表示されていない場合）
+        if (data.question) {
+            const questionData = {
+                question: data.question,
+                question_number: this.elements.currentQuestionNum.textContent || '1'
+            };
+            this.displayQuestion(questionData);
+        }
+        
         // 回答状況表示を更新
         const progressFill = this.elements.progressFill;
         const answerCount = this.elements.answerCount;
@@ -563,6 +592,9 @@ class QuizScreen {
         
         progressFill.style.width = `${progress}%`;
         answerCount.textContent = `${data.answered_count} / ${data.total_participants} 回答済み`;
+        
+        // 各選択肢に回答人数を表示
+        this.showChoicesWithCounts(data.question, data.choices_counts);
         
         // 正解率も表示
         if (!document.getElementById('correct-rate-display')) {
@@ -703,39 +735,27 @@ class QuizScreen {
     handleStateChanged(data) {
         console.log('State changed:', data.new_state);
         
-        // Update question status display with Japanese labels
-        const stateLabels = {
-            'waiting': '参加者待ち',
-            'started': 'イベント開始',
-            'title_display': 'タイトル表示',
-            'team_assignment': 'チーム分け',
-            'question_active': '問題表示中',
-            'countdown_active': 'カウントダウン中',
-            'answer_stats': '回答状況表示',
-            'answer_reveal': '回答発表',
-            'results': '結果発表',
-            'celebration': 'お疲れ様画面',
-            'finished': '終了'
-        };
+        // Update question status display using shared constants
+        this.elements.questionStatus.textContent = QuizUtils.StateUtils.getStateLabel(data.new_state);
         
-        this.elements.questionStatus.textContent = stateLabels[data.new_state] || data.new_state;
+        // Handle state-specific transitions using constants
+        const { EVENT_STATES } = QuizConstants;
         
-        // Handle state-specific transitions
         switch (data.new_state) {
-            case 'waiting':
+            case EVENT_STATES.WAITING:
                 this.showWaitingScreen();
                 break;
                 
-            case 'title_display':
+            case EVENT_STATES.TITLE_DISPLAY:
                 this.handleTitleDisplay({ title: this.elements.eventTitle.textContent });
                 break;
                 
-            case 'team_assignment':
+            case EVENT_STATES.TEAM_ASSIGNMENT:
                 // Trigger team display if teams exist
                 this.loadStatus(); // This will reload teams
                 break;
                 
-            case 'question_active':
+            case EVENT_STATES.QUESTION_ACTIVE:
                 if (data.question) {
                     // Set current question and display it
                     this.currentQuestion = {
@@ -750,33 +770,33 @@ class QuizScreen {
                 }
                 break;
                 
-            case 'countdown_active':
+            case EVENT_STATES.COUNTDOWN_ACTIVE:
                 // Countdown will be handled by separate countdown messages
                 break;
                 
-            case 'answer_stats':
+            case EVENT_STATES.ANSWER_STATS:
                 this.hideAllScreens();
                 this.elements.answerStats.style.display = 'block';
                 break;
                 
-            case 'answer_reveal':
+            case EVENT_STATES.ANSWER_REVEAL:
                 // Show question screen with answer revealed
                 if (this.currentQuestion) {
                     this.showQuestionScreen();
                 }
                 break;
                 
-            case 'results':
+            case EVENT_STATES.RESULTS:
                 this.handleFinalResults({ results: [], teams: [], team_mode: false });
                 break;
                 
-            case 'celebration':
+            case EVENT_STATES.CELEBRATION:
                 this.handleCelebration({});
                 break;
                 
-            case 'finished':
+            case EVENT_STATES.FINISHED:
                 this.showWaitingScreen();
-                this.elements.questionStatus.textContent = '終了';
+                this.elements.questionStatus.textContent = QuizUtils.StateUtils.getStateLabel(EVENT_STATES.FINISHED);
                 break;
         }
     }

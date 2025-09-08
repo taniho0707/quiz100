@@ -1126,33 +1126,10 @@ func (h *Handler) AdminJumpState(c *gin.Context) {
 		return
 	}
 
-	// Convert string to EventState
-	var targetState models.EventState
-	switch req.State {
-	case "waiting":
-		targetState = models.StateWaiting
-	case "started":
-		targetState = models.StateStarted
-	case "title_display":
-		targetState = models.StateTitleDisplay
-	case "team_assignment":
-		targetState = models.StateTeamAssignment
-	case "question_active":
-		targetState = models.StateQuestionActive
-	case "countdown_active":
-		targetState = models.StateCountdownActive
-	case "answer_stats":
-		targetState = models.StateAnswerStats
-	case "answer_reveal":
-		targetState = models.StateAnswerReveal
-	case "results":
-		targetState = models.StateResults
-	case "celebration":
-		targetState = models.StateCelebration
-	case "finished":
-		targetState = models.StateFinished
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state: " + req.State})
+	// Convert string to EventState using constants
+	targetState, err := models.StringToState(req.State)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -1223,20 +1200,8 @@ func (h *Handler) AdminJumpState(c *gin.Context) {
 
 // Get Available States for Jump
 func (h *Handler) GetAvailableStates(c *gin.Context) {
-	// Define all states with their Japanese display names
-	allStates := []gin.H{
-		{"value": "waiting", "label": "参加者待ち"},
-		{"value": "started", "label": "イベント開始"},
-		{"value": "title_display", "label": "タイトル表示"},
-		{"value": "team_assignment", "label": "チーム分け"},
-		{"value": "question_active", "label": "問題表示中"},
-		{"value": "countdown_active", "label": "カウントダウン中"},
-		{"value": "answer_stats", "label": "回答状況表示"},
-		{"value": "answer_reveal", "label": "回答発表"},
-		{"value": "results", "label": "結果発表"},
-		{"value": "celebration", "label": "お疲れ様画面"},
-		{"value": "finished", "label": "終了"},
-	}
+	// Use constants to get all states with their labels
+	allStates := models.GetAllStatesWithLabels()
 
 	c.JSON(http.StatusOK, gin.H{
 		"available_states": allStates,

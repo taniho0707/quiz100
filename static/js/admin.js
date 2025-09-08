@@ -10,6 +10,7 @@ class QuizAdmin {
 
         this.initializeElements();
         this.setupEventListeners();
+        
         this.connectWebSocket();
         this.loadStatus();
         this.loadAvailableStates();
@@ -17,52 +18,62 @@ class QuizAdmin {
 
     initializeElements() {
         this.elements = {
+            // 接続状況
             connectionStatus: document.getElementById('connection-status'),
             connectionText: document.getElementById('connection-text'),
+            connectionStatusDisplay: document.getElementById('connection-status-display'),
             
-            startBtn: document.getElementById('start-btn'),
-            showTitleBtn: document.getElementById('show-title-btn'),
-            assignTeamsBtn: document.getElementById('assign-teams-btn'),
-            nextQuestionBtn: document.getElementById('next-question-btn'),
-            countdownAlertBtn: document.getElementById('countdown-alert-btn'),
-            showAnswerStatsBtn: document.getElementById('show-answer-stats-btn'),
-            revealAnswerBtn: document.getElementById('reveal-answer-btn'),
-            showResultsBtn: document.getElementById('show-results-btn'),
-            celebrationBtn: document.getElementById('celebration-btn'),
+            // 制御ボタン
+            startEventBtn: document.getElementById('btn-start-event'),
+            showTitleBtn: document.getElementById('btn-show-title'),
+            assignTeamsBtn: document.getElementById('btn-assign-teams'),
+            nextQuestionBtn: document.getElementById('btn-next-question'),
+            countdownAlertBtn: document.getElementById('btn-countdown-alert'),
+            showAnswerStatsBtn: document.getElementById('btn-show-answer-stats'),
+            revealAnswerBtn: document.getElementById('btn-reveal-answer'),
+            showResultsBtn: document.getElementById('btn-show-results'),
+            celebrationBtn: document.getElementById('btn-celebration'),
             
+            // イベント状況
             eventStatus: document.getElementById('event-status'),
             currentQuestion: document.getElementById('current-question'),
-            totalQuestions: document.getElementById('total-questions'),
-            
             participantCount: document.getElementById('participant-count'),
+            participantCountDisplay: document.getElementById('participant-count-display'),
+            
+            // 参加者・チーム表示
             participantsList: document.getElementById('participants-list'),
             teamsContainer: document.getElementById('teams-container'),
             teamsList: document.getElementById('teams-list'),
             
-            currentQuestionDisplay: document.getElementById('current-question-display'),
+            // 問題・回答表示
+            questionDisplay: document.getElementById('question-display'),
             answersDisplay: document.getElementById('answers-display'),
-            logDisplay: document.getElementById('log-display'),
             
-            // Debug state jump elements
+            // デバッグ
             jumpStateSelect: document.getElementById('jump-state-select'),
             jumpQuestionInput: document.getElementById('jump-question-input'),
-            jumpStateBtn: document.getElementById('jump-state-btn')
+            jumpStateBtn: document.getElementById('jump-state-btn'),
+            
+            // ログ表示
+            logContainer: document.getElementById('log-container'),
+            logList: document.getElementById('log-list')
         };
     }
 
     setupEventListeners() {
-        this.elements.startBtn.addEventListener('click', () => this.executeAction('start_event'));
-        this.elements.showTitleBtn.addEventListener('click', () => this.executeAction('show_title'));
-        this.elements.assignTeamsBtn.addEventListener('click', () => this.executeAction('assign_teams'));
-        this.elements.nextQuestionBtn.addEventListener('click', () => this.executeAction('next_question'));
-        this.elements.countdownAlertBtn.addEventListener('click', () => this.executeAction('countdown_alert'));
-        this.elements.showAnswerStatsBtn.addEventListener('click', () => this.executeAction('show_answer_stats'));
-        this.elements.revealAnswerBtn.addEventListener('click', () => this.executeAction('reveal_answer'));
-        this.elements.showResultsBtn.addEventListener('click', () => this.executeAction('show_results'));
-        this.elements.celebrationBtn.addEventListener('click', () => this.executeAction('celebration'));
+        // アクションボタンのイベントリスナー
+        this.elements.startEventBtn?.addEventListener('click', () => this.executeAction('start_event'));
+        this.elements.showTitleBtn?.addEventListener('click', () => this.executeAction('show_title'));
+        this.elements.assignTeamsBtn?.addEventListener('click', () => this.executeAction('assign_teams'));
+        this.elements.nextQuestionBtn?.addEventListener('click', () => this.executeAction('next_question'));
+        this.elements.countdownAlertBtn?.addEventListener('click', () => this.executeAction('countdown_alert'));
+        this.elements.showAnswerStatsBtn?.addEventListener('click', () => this.executeAction('show_answer_stats'));
+        this.elements.revealAnswerBtn?.addEventListener('click', () => this.executeAction('reveal_answer'));
+        this.elements.showResultsBtn?.addEventListener('click', () => this.executeAction('show_results'));
+        this.elements.celebrationBtn?.addEventListener('click', () => this.executeAction('celebration'));
         
-        // Debug state jump listener
-        this.elements.jumpStateBtn.addEventListener('click', () => this.handleStateJump());
+        // デバッグ ステートジャンプ
+        this.elements.jumpStateBtn?.addEventListener('click', () => this.handleStateJump());
     }
 
     connectWebSocket() {
@@ -188,7 +199,7 @@ class QuizAdmin {
     }
 
     async startEvent() {
-        this.elements.startBtn.disabled = true;
+        this.elements.startEventBtn.disabled = true;
         
         try {
             const response = await fetch('/api/admin/start', {
@@ -212,7 +223,7 @@ class QuizAdmin {
             alert('イベント開始に失敗しました: ' + error.message);
             this.addLog(`イベント開始エラー: ${error.message}`, 'error');
         } finally {
-            this.elements.startBtn.disabled = false;
+            this.elements.startEventBtn.disabled = false;
         }
     }
 
@@ -367,8 +378,8 @@ class QuizAdmin {
                 if (data.config) {
                     this.teamMode = data.config.team_mode || false;
                     this.updateTeamModeDisplay();
-                    this.elements.totalQuestions.textContent = 
-                        data.config.questions?.length || '-';
+                    // Total questions count - can be displayed in console or elsewhere if needed
+                    console.log(`Total questions: ${data.config.questions?.length || 0}`);
                 }
                 
                 // Load available actions and update button states
@@ -394,7 +405,7 @@ class QuizAdmin {
 
     updateButtonStates(availableActions) {
         const buttonMap = {
-            'start_event': this.elements.startBtn,
+            'start_event': this.elements.startEventBtn,
             'show_title': this.elements.showTitleBtn,
             'assign_teams': this.elements.assignTeamsBtn,
             'next_question': this.elements.nextQuestionBtn,
@@ -483,7 +494,7 @@ class QuizAdmin {
         if (!this.currentEvent) {
             this.elements.eventStatus.textContent = '待機中';
             this.elements.currentQuestion.textContent = '-';
-            this.elements.startBtn.disabled = false;
+            this.elements.startEventBtn.disabled = false;
             this.elements.nextQuestionBtn.disabled = true;
             this.elements.countdownAlertBtn.disabled = true;
             return;
@@ -495,7 +506,7 @@ class QuizAdmin {
         
         this.elements.currentQuestion.textContent = this.currentEvent.current_question || 0;
         
-        this.elements.startBtn.disabled = this.currentEvent.status === 'started';
+        this.elements.startEventBtn.disabled = this.currentEvent.status === 'started';
         this.elements.nextQuestionBtn.disabled = this.currentEvent.status !== 'started';
         this.elements.countdownAlertBtn.disabled = this.currentEvent.status !== 'started';
     }
@@ -525,7 +536,7 @@ class QuizAdmin {
 
     updateQuestionDisplay() {
         if (!this.currentQuestion) {
-            this.elements.currentQuestionDisplay.innerHTML = '<p>問題が開始されていません</p>';
+            this.elements.questionDisplay.innerHTML = '<p>問題が開始されていません</p>';
             return;
         }
 
@@ -552,7 +563,7 @@ class QuizAdmin {
         });
         html += '</div>';
         
-        this.elements.currentQuestionDisplay.innerHTML = html;
+        this.elements.questionDisplay.innerHTML = html;
     }
 
     updateAnswersDisplay() {
@@ -701,14 +712,35 @@ class QuizAdmin {
         const timestamp = new Date().toLocaleTimeString();
         const logEntry = document.createElement('div');
         logEntry.className = 'log-entry';
+        logEntry.style.cssText = 'padding: 5px; margin-bottom: 3px; border-left: 3px solid #ccc; background: white; border-radius: 3px;';
+        
+        // タイプ別の色分け
+        const typeColors = {
+            'info': '#2196F3',
+            'success': '#4CAF50', 
+            'warning': '#FF9800',
+            'error': '#F44336'
+        };
+        const color = typeColors[type] || '#2196F3';
+        logEntry.style.borderLeftColor = color;
         
         logEntry.innerHTML = `
-            <span class="log-timestamp">${timestamp}</span>
-            <span class="log-type-${type}">${message}</span>
+            <span class="log-timestamp" style="color: #666; font-size: 12px; margin-right: 10px;">${timestamp}</span>
+            <span class="log-type-${type}" style="color: ${color}; font-weight: 500;">${message}</span>
         `;
         
-        this.elements.logDisplay.appendChild(logEntry);
-        this.elements.logDisplay.scrollTop = this.elements.logDisplay.scrollHeight;
+        // 新しいログを先頭に追加（column-reverseで実際は下に追加されるが、表示上は上に見える）
+        this.elements.logList.appendChild(logEntry);
+        
+        // 一番上（最新ログ）まで強制スクロール
+        this.elements.logContainer.scrollTop = 0;
+        
+        // ログが多すぎる場合は古いものを削除（最大100件）
+        const maxLogs = 100;
+        const logEntries = this.elements.logList.children;
+        while (logEntries.length > maxLogs) {
+            this.elements.logList.removeChild(logEntries[0]);
+        }
     }
 
     updateConnectionStatus(connected) {
@@ -747,22 +779,8 @@ class QuizAdmin {
     }
 
     updateCurrentStateDisplay(currentState) {
-        // Update the event status display with Japanese translation
-        const stateLabels = {
-            'waiting': '参加者待ち',
-            'started': 'イベント開始',
-            'title_display': 'タイトル表示',
-            'team_assignment': 'チーム分け',
-            'question_active': '問題表示中',
-            'countdown_active': 'カウントダウン中',
-            'answer_stats': '回答状況表示',
-            'answer_reveal': '回答発表',
-            'results': '結果発表',
-            'celebration': 'お疲れ様画面',
-            'finished': '終了'
-        };
-        
-        this.elements.eventStatus.textContent = stateLabels[currentState] || currentState;
+        // Update the event status display using shared constants
+        this.elements.eventStatus.textContent = QuizUtils.StateUtils.getStateLabel(currentState);
     }
 
     async handleStateJump() {

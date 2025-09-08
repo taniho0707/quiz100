@@ -18,22 +18,24 @@
         <div class="admin-content">
             <div class="control-panel">
                 <h2>🎯 イベント制御</h2>
-                <div class="control-buttons">
-                    <button id="start-btn" class="btn btn-success">イベント開始</button>
-                    <button id="show-title-btn" class="btn btn-info" disabled>タイトル表示</button>
-                    <button id="assign-teams-btn" class="btn btn-info" disabled style="display:none;">チーム分け</button>
-                    <button id="next-question-btn" class="btn btn-primary" disabled>次の問題</button>
-                    <button id="countdown-alert-btn" class="btn btn-warning" disabled>⏰ 残り5秒アラート</button>
-                    <button id="show-answer-stats-btn" class="btn btn-secondary" disabled>📊 回答状況表示</button>
-                    <button id="reveal-answer-btn" class="btn btn-primary" disabled>✅ 回答発表</button>
-                    <button id="show-results-btn" class="btn btn-warning" disabled>🏆 結果発表</button>
-                    <button id="celebration-btn" class="btn btn-danger" disabled>🎉 発表</button>
+                <div class="action-buttons">
+                    <button id="btn-start-event" class="btn btn-primary">🚀 イベント開始</button>
+                    <button id="btn-show-title" class="btn btn-secondary">📺 タイトル表示</button>
+                    <button id="btn-assign-teams" class="btn btn-info">👥 チーム分け</button>
+                    <button id="btn-next-question" class="btn btn-success">❓ 次の問題</button>
+                    <button id="btn-countdown-alert" class="btn btn-warning">⏰ 残り5秒アラート</button>
+                    <button id="btn-show-answer-stats" class="btn btn-info">📊 回答状況表示</button>
+                    <button id="btn-reveal-answer" class="btn btn-primary">✅ 回答発表</button>
+                    <button id="btn-show-results" class="btn btn-success">🏆 結果発表</button>
+                    <button id="btn-celebration" class="btn btn-warning">🎉 発表</button>
                 </div>
                 
                 <div class="event-status">
                     <h3>📊 イベント状況</h3>
                     <p>状態: <span id="event-status">待機中</span></p>
-                    <p>現在の問題: <span id="current-question">-</span> / <span id="total-questions">-</span></p>
+                    <p><span id="current-question">問題 0</span></p>
+                    <p><span id="participant-count-display">参加者: 0名</span></p>
+                    <p>接続: <span id="connection-status-display">🔴 未接続</span></p>
                 </div>
 
                 <!-- Debug State Jump Section -->
@@ -67,7 +69,7 @@
 
             <div class="question-panel">
                 <h2>❓ 現在の問題</h2>
-                <div id="current-question-display" class="question-display">
+                <div id="question-display" class="question-display">
                     <p>問題が開始されていません</p>
                 </div>
             </div>
@@ -81,13 +83,20 @@
 
             <div class="log-panel">
                 <h2>📋 ログ</h2>
-                <div id="log-display" class="log-display">
-                    <p>システムが起動しました</p>
+                <div id="log-container" class="log-container" style="height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #f9f9f9;">
+                    <div id="log-list" class="log-list" style="display: flex; flex-direction: column-reverse;">
+                        <!-- ログアイテムがここに動的に挿入されます（新しいものが上に表示） -->
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Common utility scripts -->
+    <script src="/js/common/constants.js"></script>
+    <script src="/js/common/utils.js"></script>
+    <script src="/js/common/state_manager.js"></script>
+    <script src="/js/common/websocket_client.js"></script>
     <script src="/js/admin.js"></script>
 </body>
 </html>

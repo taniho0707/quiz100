@@ -4,9 +4,10 @@ class QuizParticipant {
         this.sessionID = localStorage.getItem('quiz_session_id') || null;
         this.user = null;
         this.currentQuestion = null;
-        this.answered = false;
+        this.selectedAnswer = null;
         this.lastTouchEnd = 0;
         this.answersBlocked = false;
+        this.answerRevealed = false;
 
         this.initializeElements();
         this.setupEventListeners();
@@ -138,12 +139,28 @@ class QuizParticipant {
                 this.showQuestion(message.data);
                 break;
                 
+            case 'countdown':
+                if (message.data && message.data.seconds_left === 0) {
+                    // 5秒カウントダウン終了時に回答をブロック
+                    this.disableChoices();
+                    this.blockAnswers();
+                }
+                break;
+                
             case 'question_end':
+                // カウントダウン終了で既にブロックされているはず
                 this.disableChoices();
                 this.blockAnswers();
                 break;
                 
             case 'time_alert': // FIXME: 消したい
+                break;
+                
+            case 'answer_reveal':
+                this.answerRevealed = true;
+                if (message.data && message.data.correct_index !== undefined) {
+                    this.showCorrectAnswer(message.data.correct_index);
+                }
                 break;
                 
             case 'final_results':
@@ -266,8 +283,9 @@ class QuizParticipant {
 
     showQuestion(questionData) {
         this.currentQuestion = questionData;
-        this.answered = false;
+        this.selectedAnswer = null;
         this.answersBlocked = false;
+        this.answerRevealed = false;
         
         this.hideAllSections();
         this.elements.questionSection.classList.remove('hidden');
@@ -302,13 +320,13 @@ class QuizParticipant {
             
             // Touch events for better mobile experience
             button.addEventListener('touchstart', (e) => {
-                if (this.answered) return;
+                if (this.answersBlocked) return;
                 button.style.backgroundColor = '#f0f8ff';
             }, { passive: true });
             
             button.addEventListener('touchend', (e) => {
                 e.preventDefault();
-                if (this.answered) return;
+                if (this.answersBlocked) return;
                 button.style.backgroundColor = '';
                 this.selectAnswer(index);
             }, { passive: false });
@@ -322,10 +340,20 @@ class QuizParticipant {
     }
 
     async selectAnswer(answerIndex) {
-        if (this.answered || this.answersBlocked) return;
+        if (this.answersBlocked) return;
         
-        this.answered = true;
-        this.disableChoices();
+        // 正答発表後の回答は禁止
+        if (this.answerRevealed) {
+            this.showMessage('この問題はすでに正答が発表されています。');
+            return;
+        }
+        
+        // Clear previous selection highlighting
+        this.clearSelectionHighlight();
+        
+        // Highlight the selected answer
+        this.selectedAnswer = answerIndex;
+        this.highlightSelectedAnswer(answerIndex);
         
         try {
             const response = await fetch('/api/answer', {
@@ -343,23 +371,20 @@ class QuizParticipant {
             const data = await response.json();
             
             if (response.ok) {
-                this.showFeedback(data.is_correct);
                 this.user.score = data.new_score;
                 this.elements.currentScore.textContent = data.new_score;
                 this.elements.userScore.textContent = data.new_score;
             } else {
-                if (!this.answersBlocked) {
+                // 「Already answered this question」エラーは無視（回答変更として扱う）
+                if (data.error && !data.error.includes('Already answered')) {
                     console.error('Error submitting answer:', data.error);
-                    this.answered = false;
-                    this.enableChoices();
+                    this.showMessage('回答の送信に失敗しました: ' + data.error);
                 }
+                // Already answered エラーの場合は何もしない（回答変更として正常動作）
             }
         } catch (error) {
-            if (!this.answersBlocked) {
-                console.error('Error submitting answer:', error);
-                this.answered = false;
-                this.enableChoices();
-            }
+            console.error('Error submitting answer:', error);
+            this.showMessage('回答の送信中にエラーが発生しました。');
         }
     }
 
@@ -377,15 +402,37 @@ class QuizParticipant {
         this.answersBlocked = true;
         this.disableChoices();
     }
+    
+    clearSelectionHighlight() {
+        const choices = this.elements.choicesContainer.querySelectorAll('.choice-btn');
+        choices.forEach(btn => {
+            btn.classList.remove('selected', 'correct-answer');
+        });
+    }
+    
+    highlightSelectedAnswer(answerIndex) {
+        const choices = this.elements.choicesContainer.querySelectorAll('.choice-btn');
+        if (choices[answerIndex]) {
+            choices[answerIndex].classList.add('selected');
+        }
+    }
+    
+    showCorrectAnswer(correctIndex) {
+        const choices = this.elements.choicesContainer.querySelectorAll('.choice-btn');
+        if (choices[correctIndex]) {
+            choices[correctIndex].classList.add('correct-answer');
+        }
+    }
 
     showFeedback(isCorrect) {
-        this.elements.feedbackText.textContent = isCorrect ? '正解！ 🎉' : '不正解 😔';
-        this.elements.answerFeedback.className = `feedback ${isCorrect ? 'correct' : 'incorrect'}`;
-        this.elements.answerFeedback.classList.remove('hidden');
+        // Remove immediate feedback display - feedback only shown during answer reveal
+        // this.elements.feedbackText.textContent = isCorrect ? '正解！ 🎉' : '不正解 😔';
+        // this.elements.answerFeedback.className = `feedback ${isCorrect ? 'correct' : 'incorrect'}`;
+        // this.elements.answerFeedback.classList.remove('hidden');
         
-        setTimeout(() => {
-            this.elements.answerFeedback.classList.add('hidden');
-        }, 2000);
+        // setTimeout(() => {
+        //     this.elements.answerFeedback.classList.add('hidden');
+        // }, 2000);
     }
 
     showResults(resultsData) {
@@ -589,19 +636,21 @@ class QuizParticipant {
     handleStateChanged(data) {
         console.log('State changed:', data.new_state);
         
-        // Handle state-specific transitions
+        // Handle state-specific transitions using constants
+        const { EVENT_STATES } = QuizConstants;
+        
         switch (data.new_state) {
-            case 'waiting':
-            case 'started':
-            case 'title_display':
-            case 'team_assignment':
+            case EVENT_STATES.WAITING:
+            case EVENT_STATES.STARTED:
+            case EVENT_STATES.TITLE_DISPLAY:
+            case EVENT_STATES.TEAM_ASSIGNMENT:
                 // Show waiting screen for these states
                 if (this.user) {
                     this.showWaiting();
                 }
                 break;
                 
-            case 'question_active':
+            case EVENT_STATES.QUESTION_ACTIVE:
                 // Show question if data is provided
                 if (data.question && data.question_number) {
                     const questionData = {
@@ -616,24 +665,33 @@ class QuizParticipant {
                 }
                 break;
                 
-            case 'countdown_active':
-                // Disable choices and block answers during countdown
-                this.disableChoices();
+            case EVENT_STATES.COUNTDOWN_ACTIVE:
+                // カウントダウン中は回答可能（カウントダウン終了時にブロックされる）
                 break;
                 
-            case 'answer_stats':
-            case 'answer_reveal':
+            case EVENT_STATES.ANSWER_STATS:
                 // Keep question displayed but ensure answers are blocked
                 this.disableChoices();
                 this.blockAnswers();
                 break;
                 
-            case 'results':
-            case 'celebration':
+            case EVENT_STATES.ANSWER_REVEAL:
+                // Keep question displayed but ensure answers are blocked
+                this.disableChoices();
+                this.blockAnswers();
+                this.answerRevealed = true;
+                // Show correct answer if we have question data
+                if (this.currentQuestion && this.currentQuestion.question.Correct !== undefined) {
+                    this.showCorrectAnswer(this.currentQuestion.question.Correct);
+                }
+                break;
+                
+            case EVENT_STATES.RESULTS:
+            case EVENT_STATES.CELEBRATION:
                 // Wait for actual results data via final_results message
                 break;
                 
-            case 'finished':
+            case EVENT_STATES.FINISHED:
                 // Show waiting screen or keep current state
                 if (this.user) {
                     this.showWaiting();

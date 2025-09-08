@@ -163,3 +163,7 @@ func (ql *QuizLogger) LogError(operation string, err error) {
 func (ql *QuizLogger) LogAlert(message string) {
 	ql.Info("ALERT: %s", message)
 }
+
+func (ql *QuizLogger) LogStateTransition(from, to EventState) {
+	ql.Info("State transition: %s -> %s", from, to)
+}

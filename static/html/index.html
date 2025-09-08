@@ -12,7 +12,7 @@
         <button id="reset-session-btn" class="reset-btn">リセット</button>
     </div>
 
-    <div class="container">
+    <div id="main-container" class="container">
         <div id="connection-status" class="status-indicator">
             <span id="connection-text">接続中...</span>
         </div>
@@ -89,6 +89,12 @@
         </div>
     </div>
 
+    <!-- Common utility scripts -->
+    <script src="/js/common/constants.js"></script>
+    <script src="/js/common/utils.js"></script>
+    <script src="/js/common/state_manager.js"></script>
+    <script src="/js/common/websocket_client.js"></script>
+    <script src="/js/components/participant_ui.js"></script>
     <script src="/js/participant.js"></script>
 </body>
 </html>

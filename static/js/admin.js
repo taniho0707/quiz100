@@ -528,6 +528,11 @@ class QuizAdmin {
                     <span class="participant-name">${user.nickname}</span>
                 </div>
                 <span class="participant-score">${user.score}点</span>
+                <div class="participant-control">
+                    <button class="smallbtn participant-button-delete">削除</div>
+                    <button class="smallbtn participant-button-resetscore">成績消去</div>
+                    <button class="smallbtn participant-button-changename">名前変更</div>
+                </div>
             `;
             
             this.elements.participantsList.appendChild(item);
@@ -712,7 +717,7 @@ class QuizAdmin {
         const timestamp = new Date().toLocaleTimeString();
         const logEntry = document.createElement('div');
         logEntry.className = 'log-entry';
-        logEntry.style.cssText = 'padding: 5px; margin-bottom: 3px; border-left: 3px solid #ccc; background: white; border-radius: 3px;';
+        // logEntry.style.cssText = 'padding: 5px; margin-bottom: 3px; border-left: 3px solid #ccc; background: white; border-radius: 3px;';
         
         // タイプ別の色分け
         const typeColors = {
@@ -725,8 +730,8 @@ class QuizAdmin {
         logEntry.style.borderLeftColor = color;
         
         logEntry.innerHTML = `
-            <span class="log-timestamp" style="color: #666; font-size: 12px; margin-right: 10px;">${timestamp}</span>
-            <span class="log-type-${type}" style="color: ${color}; font-weight: 500;">${message}</span>
+            <span class="log-timestamp" style="color: #666;">${timestamp}</span>
+            <span class="log-type-${type}">${message}</span>
         `;
         
         // 新しいログを先頭に追加（column-reverseで実際は下に追加されるが、表示上は上に見える）

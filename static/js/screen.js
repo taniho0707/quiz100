@@ -669,6 +669,7 @@ class QuizScreen {
         }, 5000);
     }
 
+    // FIXME: 形を整える
     createCracker(side) {
         const cracker = document.createElement('div');
         cracker.className = `cracker cracker-${side}`;
@@ -687,6 +688,7 @@ class QuizScreen {
         return cracker;
     }
 
+    // FIXME: ちゃんとした方向に飛ばす
     createConfetti(side) {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#FFD93D'];
         const startX = side === 'left' ? 50 : window.innerWidth - 50;

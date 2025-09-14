@@ -15,30 +15,60 @@
             </div>
         </header>
 
-        <div class="admin-content">
-            <div class="control-panel">
-                <h2>🎯 イベント制御</h2>
-                <div class="action-buttons">
-                    <button id="btn-start-event" class="btn btn-primary">🚀 イベント開始</button>
-                    <button id="btn-show-title" class="btn btn-secondary">📺 タイトル表示</button>
-                    <button id="btn-assign-teams" class="btn btn-info">👥 チーム分け</button>
-                    <button id="btn-next-question" class="btn btn-success">❓ 次の問題</button>
-                    <button id="btn-countdown-alert" class="btn btn-warning">⏰ 残り5秒アラート</button>
-                    <button id="btn-show-answer-stats" class="btn btn-info">📊 回答状況表示</button>
-                    <button id="btn-reveal-answer" class="btn btn-primary">✅ 回答発表</button>
-                    <button id="btn-show-results" class="btn btn-success">🏆 結果発表</button>
-                    <button id="btn-celebration" class="btn btn-warning">🎉 発表</button>
+        <ui class="col3">
+            <li id="col3-1">
+                <div class="control-panel">
+                    <h2>🎯 イベント制御</h2>
+                    <div class="action-buttons">
+                        <button id="btn-start-event" class="btn btn-primary">🚀 イベント開始</button>
+                        <button id="btn-show-title" class="btn btn-secondary">📺 タイトル表示</button>
+                        <button id="btn-assign-teams" class="btn btn-info">👥 チーム分け</button>
+                        <button id="btn-next-question" class="btn btn-success">❓ 次の問題</button>
+                        <button id="btn-countdown-alert" class="btn btn-warning">⏰ 残り5秒アラート</button>
+                        <button id="btn-show-answer-stats" class="btn btn-info">📊 回答状況表示</button>
+                        <button id="btn-reveal-answer" class="btn btn-primary">✅ 回答発表</button>
+                        <button id="btn-show-results" class="btn btn-success">🏆 結果発表</button>
+                        <button id="btn-celebration" class="btn btn-warning">🎉 発表</button>
+                    </div>
                 </div>
-                
-                <div class="event-status">
-                    <h3>📊 イベント状況</h3>
-                    <p>状態: <span id="event-status">待機中</span></p>
-                    <p><span id="current-question">問題 0</span></p>
-                    <p><span id="participant-count-display">参加者: 0名</span></p>
-                    <p>接続: <span id="connection-status-display">🔴 未接続</span></p>
+                <div class="answers-panel">
+                    <h2>📝 回答状況</h2>
+                    <div id="answers-display" class="answers-display">
+                        <p>問題が開始されていません</p>
+                    </div>
                 </div>
+                <div class="question-panel">
+                    <h2>❓ 現在の問題</h2>
+                    <div id="question-display" class="question-display">
+                        <p>問題が開始されていません</p>
+                    </div>
+                </div>
+            </li>
 
-                <!-- Debug State Jump Section -->
+            <li id="col3-2">
+                <div id="teams-container" class="teams-panel" style="display:none;">
+                    <h2>🏆 チーム一覧</h2>
+                    <div id="teams-list" class="teams-list">
+                        <p>チームが作成されていません</p>
+                    </div>
+                </div>
+                <div class="participants-panel">
+                    <h2>👥 参加者一覧 (<span id="participant-count">0</span>人) <button class="smallbtn button-h2" id="sort-by-name">名前降順</button> <button class="smallbtn button-h2" id="sort-by-score">成績降順</button></h2>
+                    <div id="participants-list" class="participants-list">
+                        <!-- 参加者リストがここに動的に挿入されます -->
+                    </div>
+                </div>
+            </li>
+
+            <li id="col3-3">
+                <div class="log-panel">
+                    <h2>📋 ログ</h2>
+                    <div id="log-container" class="log-container" style="height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #f9f9f9;">
+                        <div id="log-list" class="log-list" style="display: flex; flex-direction: column-reverse;">
+                            <!-- ログアイテムがここに動的に挿入されます（新しいものが上に表示） -->
+                        </div>
+                    </div>
+                </div>
                 <div class="debug-section">
                     <h3 style="font-size: 12px; color: #666; margin-bottom: 8px;">🔧 デバッグ: ステートジャンプ</h3>
                     <div class="debug-controls" style="display: flex; align-items: center; gap: 8px; font-size: 11px;">
@@ -51,45 +81,8 @@
                                background: #666; color: white; border: none; border-radius: 2px;">ジャンプ</button>
                     </div>
                 </div>
-            </div>
-
-            <div class="participants-panel">
-                <h2>👥 参加者一覧 (<span id="participant-count">0</span>人)</h2>
-                <div id="participants-list" class="participants-list">
-                    <!-- 参加者リストがここに動的に挿入されます -->
-                </div>
-            </div>
-
-            <div id="teams-container" class="teams-panel" style="display:none;">
-                <h2>🏆 チーム一覧</h2>
-                <div id="teams-list" class="teams-list">
-                    <p>チームが作成されていません</p>
-                </div>
-            </div>
-
-            <div class="question-panel">
-                <h2>❓ 現在の問題</h2>
-                <div id="question-display" class="question-display">
-                    <p>問題が開始されていません</p>
-                </div>
-            </div>
-
-            <div class="answers-panel">
-                <h2>📝 回答状況</h2>
-                <div id="answers-display" class="answers-display">
-                    <p>問題が開始されていません</p>
-                </div>
-            </div>
-
-            <div class="log-panel">
-                <h2>📋 ログ</h2>
-                <div id="log-container" class="log-container" style="height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #f9f9f9;">
-                    <div id="log-list" class="log-list" style="display: flex; flex-direction: column-reverse;">
-                        <!-- ログアイテムがここに動的に挿入されます（新しいものが上に表示） -->
-                    </div>
-                </div>
-            </div>
-        </div>
+            </li>
+        </ui>
     </div>
 
     <!-- Common utility scripts -->

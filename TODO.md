@@ -5,6 +5,16 @@
 - show に表示する問題を順番に前後に移動できる補助機能を用意する
 - 100人の同時負荷テスト
 - 同時負荷テストで何台かを通信状況が不安定な状態を再現する
+- 下記に該当する要素にアクセスするコードを削除
+```                
+                <div class="event-status">
+                    <h3>📊 イベント状況</h3>
+                    <p>状態: <span id="event-status">待機中</span></p>
+                    <p><span id="current-question">問題 0</span></p>
+                    <p><span id="participant-count-display">参加者: 0名</span></p>
+                    <p>接続: <span id="connection-status-display">🔴 未接続</span></p>
+                </div>
+```
 
 # リファクタリング実装計画
 

@@ -469,7 +469,7 @@ type EventStateManager struct {
 
 func NewEventStateManager(teamMode bool, totalQuestions int) *EventStateManager {
 	esm := &EventStateManager{
-		currentState:    StateWaiting,
+		currentState:    StateStarted,
 		currentQuestion: 0,
 		totalQuestions:  totalQuestions,
 		teamMode:        teamMode,
@@ -481,7 +481,6 @@ func NewEventStateManager(teamMode bool, totalQuestions int) *EventStateManager 
 
 func (esm *EventStateManager) initValidTransitions() {
 	esm.validTransitions = map[EventState][]EventState{
-		StateWaiting:         {StateStarted},
 		StateStarted:         {StateTitleDisplay},
 		StateTitleDisplay:    {StateTeamAssignment, StateQuestionActive},
 		StateTeamAssignment:  {StateQuestionActive},
@@ -567,8 +566,6 @@ func (esm *EventStateManager) NextQuestion() error {
 
 func (esm *EventStateManager) GetAvailableActions() []string {
 	switch esm.currentState {
-	case StateWaiting:
-		return []string{"start_event"}
 	case StateStarted:
 		return []string{"show_title"}
 	case StateTitleDisplay:

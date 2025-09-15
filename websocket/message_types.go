@@ -27,6 +27,11 @@ const (
 	MessageAnswerReveal MessageType = "answer_reveal"
 	MessageStateChanged MessageType = "state_changed"
 
+	// Connectivity messages
+	MessagePing       MessageType = "ping"
+	MessagePong       MessageType = "pong"
+	MessagePingResult MessageType = "ping_result"
+
 	// Legacy/deprecated messages (to be removed)
 	MessageTimeAlert MessageType = "time_alert" // DEPRECATED: use countdown instead
 )
@@ -50,6 +55,9 @@ func AllMessageTypes() []MessageType {
 		MessageAnswerStats,
 		MessageAnswerReveal,
 		MessageStateChanged,
+		MessagePing,
+		MessagePong,
+		MessagePingResult,
 		MessageTimeAlert, // DEPRECATED
 	}
 }

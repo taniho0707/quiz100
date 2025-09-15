@@ -30,12 +30,11 @@ func (hm *HubManager) BroadcastToType(msgType MessageType, data interface{}, cli
 	return hm.broadcastTypedMessageToType(message, clientType)
 }
 
-// BroadcastToUser sends a message to a specific user (not implemented yet)
-// TODO: Implement user-specific broadcasting when needed
-// func (hm *HubManager) BroadcastToUser(msgType MessageType, data interface{}, userID int) error {
-// 	message := NewTypedMessageWithUser(msgType, data, userID)
-// 	return hm.broadcastTypedMessageToUser(message, userID)
-// }
+// BroadcastToUser sends a message to a specific user
+func (hm *HubManager) BroadcastToUser(msgType MessageType, data interface{}, userID int) error {
+	message := NewTypedMessage(msgType, data)
+	return hm.broadcastTypedMessageToUser(message, userID)
+}
 
 // BroadcastEventStarted sends event started message to all clients
 func (hm *HubManager) BroadcastEventStarted(eventData interface{}) error {
@@ -160,6 +159,11 @@ func (hm *HubManager) GetStatistics() map[string]interface{} {
 	return result
 }
 
+// GetClientsByType returns clients of a specific type
+func (hm *HubManager) GetClientsByType(clientType ClientType) []*Client {
+	return hm.hub.GetClientsByType(clientType)
+}
+
 // Private helper methods
 
 // broadcastTypedMessage broadcasts a typed message to all clients
@@ -186,18 +190,17 @@ func (hm *HubManager) broadcastTypedMessageToType(message TypedMessage, clientTy
 	return nil
 }
 
-// broadcastTypedMessageToUser broadcasts a typed message to a specific user (not implemented yet)
-// TODO: Implement user-specific broadcasting when needed
-// func (hm *HubManager) broadcastTypedMessageToUser(message TypedMessage, userID int) error {
-// 	messageBytes, err := json.Marshal(message)
-// 	if err != nil {
-// 		log.Printf("Error marshaling typed message: %v", err)
-// 		return err
-// 	}
-//
-// 	hm.hub.BroadcastToUser(messageBytes, userID)
-// 	return nil
-// }
+// broadcastTypedMessageToUser broadcasts a typed message to a specific user
+func (hm *HubManager) broadcastTypedMessageToUser(message TypedMessage, userID int) error {
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Error marshaling typed message: %v", err)
+		return err
+	}
+
+	hm.hub.BroadcastToUser(messageBytes, userID)
+	return nil
+}
 
 // SendDeprecationWarning sends a warning about deprecated message types
 func (hm *HubManager) SendDeprecationWarning(msgType MessageType) {

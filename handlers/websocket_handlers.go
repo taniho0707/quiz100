@@ -12,20 +12,22 @@ import (
 
 // WebSocketHandlers contains handlers for WebSocket connections and utility endpoints
 type WebSocketHandlers struct {
-	hub          *websocket.Hub
-	hubManager   *websocket.HubManager
-	userRepo     *models.UserRepository
-	teamRepo     *models.TeamRepository
-	eventRepo    *models.EventRepository
-	logger       models.QuizLogger
-	config       *models.Config
-	currentEvent *models.Event
+	hub            *websocket.Hub
+	hubManager     *websocket.HubManager
+	messageHandler *websocket.MessageHandler
+	userRepo       *models.UserRepository
+	teamRepo       *models.TeamRepository
+	eventRepo      *models.EventRepository
+	logger         models.QuizLogger
+	config         *models.Config
+	currentEvent   *models.Event
 }
 
 // NewWebSocketHandlers creates a new WebSocketHandlers instance
 func NewWebSocketHandlers(
 	hub *websocket.Hub,
 	hubManager *websocket.HubManager,
+	messageHandler *websocket.MessageHandler,
 	userRepo *models.UserRepository,
 	teamRepo *models.TeamRepository,
 	eventRepo *models.EventRepository,
@@ -33,13 +35,14 @@ func NewWebSocketHandlers(
 	config *models.Config,
 ) *WebSocketHandlers {
 	return &WebSocketHandlers{
-		hub:        hub,
-		hubManager: hubManager,
-		userRepo:   userRepo,
-		teamRepo:   teamRepo,
-		eventRepo:  eventRepo,
-		logger:     logger,
-		config:     config,
+		hub:            hub,
+		hubManager:     hubManager,
+		messageHandler: messageHandler,
+		userRepo:       userRepo,
+		teamRepo:       teamRepo,
+		eventRepo:      eventRepo,
+		logger:         logger,
+		config:         config,
 	}
 }
 
@@ -57,17 +60,17 @@ func (wh *WebSocketHandlers) ParticipantWebSocket(c *gin.Context) {
 		return
 	}
 
-	websocket.ServeWS(wh.hub, c.Writer, c.Request, websocket.ClientTypeParticipant, user.ID, sessionID)
+	websocket.ServeWS(wh.hub, c.Writer, c.Request, websocket.ClientTypeParticipant, user.ID, sessionID, wh.messageHandler)
 }
 
 // AdminWebSocket handles WebSocket connections for admin clients
 func (wh *WebSocketHandlers) AdminWebSocket(c *gin.Context) {
-	websocket.ServeWS(wh.hub, c.Writer, c.Request, websocket.ClientTypeAdmin, 0, "admin")
+	websocket.ServeWS(wh.hub, c.Writer, c.Request, websocket.ClientTypeAdmin, 0, "admin", wh.messageHandler)
 }
 
 // ScreenWebSocket handles WebSocket connections for screen display
 func (wh *WebSocketHandlers) ScreenWebSocket(c *gin.Context) {
-	websocket.ServeWS(wh.hub, c.Writer, c.Request, websocket.ClientTypeScreen, 0, "screen")
+	websocket.ServeWS(wh.hub, c.Writer, c.Request, websocket.ClientTypeScreen, 0, "screen", wh.messageHandler)
 }
 
 // GetStatus returns the current system status

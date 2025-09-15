@@ -134,6 +134,22 @@ func (h *Hub) BroadcastExceptType(message []byte, excludeType ClientType) {
 	}
 }
 
+func (h *Hub) BroadcastToUser(message []byte, userID int) {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for client := range h.Clients {
+		if client.UserID == userID {
+			select {
+			case client.Send <- message:
+			default:
+				close(client.Send)
+				delete(h.Clients, client)
+			}
+		}
+	}
+}
+
 func (h *Hub) GetClientsByType(clientType ClientType) []*Client {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
@@ -250,7 +266,7 @@ func (c *Client) WritePump() {
 	}
 }
 
-func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request, clientType ClientType, userID int, sessionID string) {
+func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request, clientType ClientType, userID int, sessionID string, messageHandler *MessageHandler) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade error: %v", err)
@@ -268,6 +284,12 @@ func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request, clientType Client
 
 	hub.Register <- client
 
+	// Set up message handling function
+	var onMessage func(*Client, []byte)
+	if messageHandler != nil {
+		onMessage = messageHandler.HandleMessage
+	}
+
 	go client.WritePump()
-	go client.ReadPump(hub, nil)
+	go client.ReadPump(hub, onMessage)
 }

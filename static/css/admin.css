@@ -512,3 +512,36 @@ ul, li {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* Ping状態表示 */
+.ping-status {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 5px;
+    font-weight: 500;
+    min-width: 50px;
+    text-align: center;
+    display: inline-block;
+}
+
+.ping-status.good {
+    background: #d4edda;
+    color: #155724;
+}
+
+.ping-status.slow {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.ping-status.bad {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.ping-status.unknown,
+.ping-status.stale {
+    background: #e2e3e5;
+    color: #6c757d;
+}

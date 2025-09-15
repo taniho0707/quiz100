@@ -170,7 +170,11 @@ class QuizParticipant {
             case 'state_changed':
                 this.handleStateChanged(message.data);
                 break;
-                
+
+            case 'ping':
+                this.handlePing(message.data);
+                break;
+
             default:
                 console.log('Unknown message type:', message.type);
         }
@@ -700,6 +704,19 @@ class QuizParticipant {
                 
             default:
                 console.log('Unhandled state:', data.new_state);
+        }
+    }
+
+    handlePing(data) {
+        // Respond to ping immediately with pong
+        if (this.ws && this.ws.readyState === WebSocket.OPEN && data.ping_id) {
+            const pongMessage = {
+                type: 'pong',
+                data: {
+                    ping_id: data.ping_id
+                }
+            };
+            this.ws.send(JSON.stringify(pongMessage));
         }
     }
 

@@ -46,7 +46,14 @@ func main() {
 	// Initialize WebSocket hub and manager
 	hub := websocket.NewHub()
 	hubManager := websocket.NewHubManager(hub)
+
+	// Initialize ping manager with adapter
+	userRepoAdapter := websocket.NewUserRepositoryAdapter(userRepo)
+	pingManager := websocket.NewPingManager(hubManager, userRepoAdapter)
+	messageHandler := websocket.NewMessageHandler(pingManager)
+
 	go hub.Run()
+	go pingManager.Start()
 
 	// Initialize state manager and service
 	stateManager := models.NewEventStateManager(config.Event.TeamMode, len(config.Questions))
@@ -55,7 +62,7 @@ func main() {
 	// Initialize split handlers
 	participantHandlers := handlers.NewParticipantHandlers(userRepo, answerRepo, emojiReactionRepo, hubManager, *logger, config)
 	adminHandlers := handlers.NewAdminHandlers(eventRepo, userRepo, answerRepo, teamRepo, teamAssignmentSvc, hubManager, stateService, *logger, config)
-	websocketHandlers := handlers.NewWebSocketHandlers(hub, hubManager, userRepo, teamRepo, eventRepo, *logger, config)
+	websocketHandlers := handlers.NewWebSocketHandlers(hub, hubManager, messageHandler, userRepo, teamRepo, eventRepo, *logger, config)
 
 	// Initialize current event (empty initially)
 	var currentEvent *models.Event = nil

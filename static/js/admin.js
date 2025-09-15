@@ -7,10 +7,12 @@ class QuizAdmin {
         this.currentQuestion = null;
         this.answers = new Map();
         this.teamMode = false;
+        this.pingResults = new Map(); // Store ping results per user
+        this.sortMode = 'name'; // 'name', 'score', 'ping'
 
         this.initializeElements();
         this.setupEventListeners();
-        
+
         this.connectWebSocket();
         this.loadStatus();
         this.loadAvailableStates();
@@ -56,7 +58,12 @@ class QuizAdmin {
             
             // ログ表示
             logContainer: document.getElementById('log-container'),
-            logList: document.getElementById('log-list')
+            logList: document.getElementById('log-list'),
+
+            // 並び替えボタン
+            sortByNameBtn: document.getElementById('sort-by-name'),
+            sortByScoreBtn: document.getElementById('sort-by-score'),
+            sortByPingBtn: document.getElementById('sort-by-ping')
         };
     }
 
@@ -74,6 +81,11 @@ class QuizAdmin {
         
         // デバッグ ステートジャンプ
         this.elements.jumpStateBtn?.addEventListener('click', () => this.handleStateJump());
+
+        // 並び替えボタン
+        this.elements.sortByNameBtn?.addEventListener('click', () => this.setSortMode('name'));
+        this.elements.sortByScoreBtn?.addEventListener('click', () => this.setSortMode('score'));
+        this.elements.sortByPingBtn?.addEventListener('click', () => this.setSortMode('ping'));
     }
 
     connectWebSocket() {
@@ -138,7 +150,11 @@ class QuizAdmin {
             case 'team_member_added':
                 this.handleTeamMemberAdded(message.data);
                 break;
-                
+
+            case 'ping_result':
+                this.handlePingResult(message.data);
+                break;
+
             default:
                 console.log('Unknown message type:', message.type);
         }
@@ -405,7 +421,6 @@ class QuizAdmin {
 
     updateButtonStates(availableActions) {
         const buttonMap = {
-            'start_event': this.elements.startEventBtn,
             'show_title': this.elements.showTitleBtn,
             'assign_teams': this.elements.assignTeamsBtn,
             'next_question': this.elements.nextQuestionBtn,
@@ -514,18 +529,49 @@ class QuizAdmin {
     updateParticipants(users) {
         this.participants.clear();
         users.forEach(user => this.participants.set(user.id, user));
-        
+
         this.elements.participantCount.textContent = users.length;
+        this.updateParticipantsDisplay();
+    }
+
+    setSortMode(mode) {
+        this.sortMode = mode;
+        this.updateParticipantsDisplay();
+    }
+
+    updateParticipantsDisplay() {
         this.elements.participantsList.innerHTML = '';
-        
-        users.forEach(user => {
+
+        // 参加者を並び替え
+        const sortedParticipants = this.getSortedParticipants();
+
+        sortedParticipants.forEach(user => {
             const item = document.createElement('div');
             item.className = 'participant-item';
-            
+
+            // Get ping data for this user
+            const pingData = this.pingResults.get(user.id);
+            let pingStatusHtml = '';
+
+            if (pingData) {
+                const age = Date.now() - pingData.timestamp;
+                const isStale = age > 15000; // Data older than 15 seconds
+
+                if (isStale) {
+                    pingStatusHtml = '<span class="ping-status stale">--ms</span>';
+                } else {
+                    const latencyText = pingData.latency === 0 ? 'timeout' : `${pingData.latency}ms`;
+                    pingStatusHtml = `<span class="ping-status ${pingData.status}">${latencyText}</span>`;
+                }
+            } else {
+                pingStatusHtml = '<span class="ping-status unknown">--ms</span>';
+            }
+
             item.innerHTML = `
                 <div class="participant-info">
                     <div class="connection-status ${user.connected ? '' : 'disconnected'}"></div>
                     <span class="participant-name">${user.nickname}</span>
+                    ${pingStatusHtml}
                 </div>
                 <span class="participant-score">${user.score}点</span>
                 <div class="participant-control">
@@ -534,9 +580,57 @@ class QuizAdmin {
                     <button class="smallbtn participant-button-changename">名前変更</div>
                 </div>
             `;
-            
+
             this.elements.participantsList.appendChild(item);
         });
+    }
+
+    getSortedParticipants() {
+        const participants = Array.from(this.participants.values());
+
+        switch (this.sortMode) {
+            case 'name':
+                return participants.sort((a, b) => a.nickname.localeCompare(b.nickname));
+
+            case 'score':
+                return participants.sort((a, b) => b.score - a.score);
+
+            case 'ping':
+                return participants.sort((a, b) => {
+                    const pingA = this.pingResults.get(a.id);
+                    const pingB = this.pingResults.get(b.id);
+
+                    // データがない場合は最下位
+                    if (!pingA && !pingB) return 0;
+                    if (!pingA) return 1;
+                    if (!pingB) return -1;
+
+                    // 古いデータは最下位
+                    const ageA = Date.now() - pingA.timestamp;
+                    const ageB = Date.now() - pingB.timestamp;
+                    const isStaleA = ageA > 15000;
+                    const isStaleB = ageB > 15000;
+
+                    if (isStaleA && !isStaleB) return 1;
+                    if (!isStaleA && isStaleB) return -1;
+                    if (isStaleA && isStaleB) return 0;
+
+                    // 良い通信 → 普通 → 悪い通信 の順序
+                    const statusOrder = { 'good': 0, 'slow': 1, 'bad': 2 };
+                    const orderA = statusOrder[pingA.status] || 3;
+                    const orderB = statusOrder[pingB.status] || 3;
+
+                    if (orderA !== orderB) {
+                        return orderA - orderB;
+                    }
+
+                    // 同じステータスの場合はレイテンシが低い順
+                    return pingA.latency - pingB.latency;
+                });
+
+            default:
+                return participants;
+        }
     }
 
     updateQuestionDisplay() {
@@ -710,6 +804,24 @@ class QuizAdmin {
             this.teams.set(data.team.id, data.team);
             this.updateTeamsDisplay();
             this.addLog(`${data.user.nickname} が ${data.team.name} に自動配置されました`, 'success');
+        }
+    }
+
+    handlePingResult(data) {
+        // Store ping result for the user
+        this.pingResults.set(data.user_id, {
+            nickname: data.nickname,
+            latency: data.latency,
+            status: data.status,
+            timestamp: Date.now()
+        });
+
+        // Update the participants display to show ping status
+        this.updateParticipantsDisplay();
+
+        // Optional: Add to log for debugging
+        if (data.status === 'bad' || data.latency > 1000) {
+            this.addLog(`${data.nickname} の通信が不安定です (${data.latency === 0 ? 'タイムアウト' : data.latency + 'ms'})`, 'warning');
         }
     }
 

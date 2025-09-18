@@ -22,12 +22,14 @@ body {
     text-align: center;
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .screen-header h1 {
     font-size: 48px;
     font-weight: 700;
-    margin-bottom: 15px;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 
@@ -49,7 +51,7 @@ body {
 
 .screen-section {
     width: 100%;
-    max-width: 1200px;
+    max-width: 98vw;
     text-align: center;
 }
 
@@ -124,9 +126,9 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-bottom: 40px;
     font-size: 24px;
     font-weight: 600;
+    margin-left: 40px;
 }
 
 .question-number {
@@ -162,19 +164,20 @@ body {
 
 .choices-display {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    margin-bottom: 50px;
+    grid-template-columns: 1fr 1fr; /* 2列を等幅で */
+    grid-template-rows: 1fr 1fr;    /* 2行を等高で */
+    gap: 40px;
+    margin-bottom: 40px;
 }
 
 .choice-display {
     background: rgba(255, 255, 255, 0.15);
     border-radius: 15px;
-    padding: 25px;
-    font-size: 20px;
+    padding: 40px;
+    font-size: 80px;
     font-weight: 500;
     backdrop-filter: blur(10px);
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.5);
     transition: all 0.3s ease;
 }
 
@@ -194,11 +197,11 @@ body {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 20px;
     padding: 8px 16px;
-    font-size: 18px;
+    font-size: 50px;
     font-weight: 600;
     color: #fff;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-    min-width: 60px;
+    min-width: 150px;
     text-align: center;
 }
 
@@ -210,14 +213,16 @@ body {
 
 .choice-letter {
     display: inline-block;
-    width: 40px;
-    height: 40px;
+    width: 100px;
+    height: 100px;
     background: rgba(255, 255, 255, 0.2);
     border-radius: 50%;
-    line-height: 40px;
+    line-height: 100px;
     text-align: center;
     margin-right: 15px;
     font-weight: 700;
+    font-size: 80px;
+    vertical-align: text-bottom;
 }
 
 .answer-stats h3 {
@@ -248,41 +253,114 @@ body {
     transition: width 0.5s ease;
 }
 
+/* Results Screen - 50チーム対応レイアウト */
 .rankings-display {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 200px); /* ヘッダー分を除く */
+    width: 100%;
+    max-width: 100vw;
+    margin: 0;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
     backdrop-filter: blur(10px);
+}
+
+/* 表彰台エリア（1-3位） */
+.podium-area {
+    height: 30%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+}
+
+.first-place {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #FFD700;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.second-third-place {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
     max-width: 800px;
-    margin: 0 auto;
+}
+
+.second-place, .third-place {
+    display: flex;
+    align-items: center;
+    font-size: 1.8rem;
+    font-weight: 600;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.second-place {
+    color: #C0C0C0;
+}
+
+.third-place {
+    color: #CD7F32;
+}
+
+/* 一般順位エリア（4-50位） */
+.general-rankings {
+    height: 70%;
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: 8px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    overflow: hidden;
 }
 
 .ranking-item {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    justify-content: center;
     align-items: center;
-    padding: 20px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    font-size: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(5px);
 }
 
-.ranking-item:last-child {
-    border-bottom: none;
-}
-
-.ranking-item:first-child {
-    font-size: 32px;
+.ranking-item .rank {
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
     color: #FFD700;
 }
 
-.ranking-item:nth-child(2) {
-    font-size: 28px;
-    color: #C0C0C0;
+.ranking-item .team-name {
+    font-size: 0.85rem;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
-.ranking-item:nth-child(3) {
-    font-size: 26px;
-    color: #CD7F32;
+.ranking-item .team-score {
+    font-size: 0.75rem;
+    opacity: 0.8;
 }
 
 .rank {
@@ -331,6 +409,9 @@ body {
     text-align: center;
     font-size: 14px;
     font-weight: 500;
+    position: fixed;
+    left: 10px;
+    bottom: 10px;
 }
 
 .connection-status.connected {

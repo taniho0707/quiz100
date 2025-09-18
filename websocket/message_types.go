@@ -32,6 +32,12 @@ const (
 	MessagePong       MessageType = "pong"
 	MessagePingResult MessageType = "ping_result"
 
+	// State synchronization messages
+	MessageInitialSync  MessageType = "initial_sync"
+	MessageStateSync    MessageType = "state_sync"
+	MessageSyncRequest  MessageType = "sync_request"
+	MessageSyncComplete MessageType = "sync_complete"
+
 	// Legacy/deprecated messages (to be removed)
 	MessageTimeAlert MessageType = "time_alert" // DEPRECATED: use countdown instead
 )
@@ -58,6 +64,10 @@ func AllMessageTypes() []MessageType {
 		MessagePing,
 		MessagePong,
 		MessagePingResult,
+		MessageInitialSync,
+		MessageStateSync,
+		MessageSyncRequest,
+		MessageSyncComplete,
 		MessageTimeAlert, // DEPRECATED
 	}
 }

@@ -57,12 +57,12 @@ func main() {
 
 	// Initialize state manager and service
 	stateManager := models.NewEventStateManager(config.Event.TeamMode, len(config.Questions))
-	stateService := services.NewStateService(stateManager, hubManager, logger)
+	stateService := services.NewStateService(stateManager, hubManager, hub, logger, config, userRepo, teamRepo)
 
 	// Initialize split handlers
 	participantHandlers := handlers.NewParticipantHandlers(userRepo, answerRepo, emojiReactionRepo, hubManager, *logger, config)
 	adminHandlers := handlers.NewAdminHandlers(eventRepo, userRepo, answerRepo, teamRepo, teamAssignmentSvc, hubManager, stateService, *logger, config)
-	websocketHandlers := handlers.NewWebSocketHandlers(hub, hubManager, messageHandler, userRepo, teamRepo, eventRepo, *logger, config)
+	websocketHandlers := handlers.NewWebSocketHandlers(hub, hubManager, messageHandler, userRepo, teamRepo, eventRepo, *logger, config, stateService)
 
 	// Initialize current event (empty initially)
 	var currentEvent *models.Event = nil
@@ -132,6 +132,12 @@ func main() {
 		ws.GET("/participant", websocketHandlers.ParticipantWebSocket)
 		ws.GET("/admin", middleware.AdminAuth(), websocketHandlers.AdminWebSocket)
 		ws.GET("/screen", middleware.ScreenAuth(), websocketHandlers.ScreenWebSocket)
+
+		// State synchronization endpoints
+		ws.GET("/sync-status", middleware.AdminAuth(), websocketHandlers.GetSyncStatus)
+		ws.POST("/sync-client", middleware.AdminAuth(), websocketHandlers.RequestClientSync)
+		ws.POST("/sync-all", middleware.AdminAuth(), websocketHandlers.SyncAllClients)
+		ws.GET("/sync-check/:user_id", middleware.AdminAuth(), websocketHandlers.CheckClientSync)
 	}
 
 	logger.Info("=== QUIZ SYSTEM STARTING ===")

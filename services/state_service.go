@@ -11,7 +11,11 @@ import (
 type StateService struct {
 	stateManager *models.EventStateManager
 	hubManager   *websocket.HubManager
+	hub          *websocket.Hub
 	logger       Logger
+	config       *models.Config
+	userRepo     *models.UserRepository
+	teamRepo     *models.TeamRepository
 }
 
 // Logger interface for logging operations
@@ -31,12 +35,23 @@ type StateTransitionResult struct {
 }
 
 // NewStateService creates a new StateService instance
-func NewStateService(stateManager *models.EventStateManager, hubManager *websocket.HubManager, logger Logger) *StateService {
-	return &StateService{
+func NewStateService(stateManager *models.EventStateManager, hubManager *websocket.HubManager, hub *websocket.Hub, logger Logger, config *models.Config, userRepo *models.UserRepository, teamRepo *models.TeamRepository) *StateService {
+	ss := &StateService{
 		stateManager: stateManager,
 		hubManager:   hubManager,
+		hub:          hub,
 		logger:       logger,
+		config:       config,
+		userRepo:     userRepo,
+		teamRepo:     teamRepo,
 	}
+
+	// Start periodic sync with 15-second interval
+	if hub != nil {
+		hub.StartPeriodicSync(15 * time.Second)
+	}
+
+	return ss
 }
 
 // GetCurrentState returns the current state
@@ -95,6 +110,9 @@ func (ss *StateService) TransitionTo(targetState models.EventState) *StateTransi
 	// Broadcast state change
 	ss.broadcastStateChange(previousState, targetState)
 
+	// Update Hub event state for synchronization
+	ss.UpdateEventState()
+
 	return &StateTransitionResult{
 		PreviousState: previousState,
 		NewState:      targetState,
@@ -124,6 +142,9 @@ func (ss *StateService) JumpToState(targetState models.EventState) *StateTransit
 
 	// Broadcast state change
 	ss.broadcastStateChange(previousState, targetState)
+
+	// Update Hub event state for synchronization
+	ss.UpdateEventState()
 
 	return &StateTransitionResult{
 		PreviousState: previousState,
@@ -163,6 +184,9 @@ func (ss *StateService) NextQuestion() *StateTransitionResult {
 		// Broadcast state change if state actually changed
 		ss.broadcastStateChange(previousState, newState)
 	}
+
+	// Update Hub event state for synchronization (question number changed)
+	ss.UpdateEventState()
 
 	return &StateTransitionResult{
 		PreviousState: previousState,
@@ -281,4 +305,203 @@ func (ss *StateService) AutoTransitionToCelebration(delay time.Duration) {
 			ss.logger.LogError("auto-transition to finished", result.Error)
 		}
 	}()
+}
+
+// State Synchronization Methods
+
+// GenerateEventSyncData creates comprehensive synchronization data for the current state
+func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
+	currentState := ss.stateManager.GetCurrentState()
+	currentQuestion := ss.stateManager.GetCurrentQuestion()
+
+	syncData := &websocket.EventSyncData{
+		EventState:      string(currentState),
+		CurrentQuestion: currentQuestion,
+		SyncVersion:     0, // Will be set by Hub
+		Timestamp:       time.Now(),
+	}
+
+	// Add question data if in question-related state
+	if currentState == models.StateQuestionActive ||
+		currentState == models.StateCountdownActive ||
+		currentState == models.StateAnswerStats ||
+		currentState == models.StateAnswerReveal {
+		if ss.config != nil && currentQuestion > 0 && currentQuestion <= len(ss.config.Questions) {
+			question := ss.config.Questions[currentQuestion-1]
+			syncData.QuestionData = map[string]interface{}{
+				"question_number": currentQuestion,
+				"question":        question,
+			}
+		}
+	}
+
+	// Add team data if in team mode and relevant state
+	if ss.config != nil && ss.config.Event.TeamMode &&
+		(currentState == models.StateTeamAssignment ||
+			currentState == models.StateQuestionActive ||
+			currentState == models.StateResults) {
+		if teams, err := ss.teamRepo.GetAllTeamsWithMembers(); err == nil {
+			teamData := make([]interface{}, len(teams))
+			for i, team := range teams {
+				teamData[i] = map[string]interface{}{
+					"id":      team.ID,
+					"name":    team.Name,
+					"score":   team.Score,
+					"members": team.Members,
+				}
+			}
+			syncData.TeamData = teamData
+		}
+	}
+
+	// Add participant data for admin visibility
+	if users, err := ss.userRepo.GetAllUsers(); err == nil {
+		participantData := make([]interface{}, len(users))
+		for i, user := range users {
+			participantData[i] = map[string]interface{}{
+				"id":        user.ID,
+				"nickname":  user.Nickname,
+				"team_id":   user.TeamID,
+				"score":     user.Score,
+				"connected": user.Connected,
+			}
+		}
+		syncData.ParticipantData = participantData
+	}
+
+	return syncData
+}
+
+// UpdateEventState updates the Hub's event state and triggers synchronization
+func (ss *StateService) UpdateEventState() {
+	if ss.hub == nil {
+		return
+	}
+
+	syncData := ss.GenerateEventSyncData()
+	ss.hub.UpdateEventState(syncData)
+}
+
+// RequestClientSync manually requests synchronization for a specific client
+func (ss *StateService) RequestClientSync(userID int, syncType string) {
+	if ss.hub == nil {
+		return
+	}
+
+	// Find client by userID
+	participants := ss.hub.GetClientsByType(websocket.ClientTypeParticipant)
+	for _, client := range participants {
+		if client.UserID == userID {
+			ss.hub.RequestStateSync(client, syncType)
+			ss.logger.LogAlert(fmt.Sprintf("Manual sync requested for user %d (type: %s)", userID, syncType))
+			return
+		}
+	}
+
+	ss.logger.LogError("client sync request", fmt.Errorf("client not found for user ID: %d", userID))
+}
+
+// GetClientSyncStatus returns synchronization status for all connected clients
+func (ss *StateService) GetClientSyncStatus() map[int]*websocket.ClientState {
+	if ss.hub == nil {
+		return make(map[int]*websocket.ClientState)
+	}
+
+	return ss.hub.GetClientSyncStatus()
+}
+
+// SyncAllClients forces synchronization for all connected participants
+func (ss *StateService) SyncAllClients() {
+	if ss.hub == nil {
+		return
+	}
+
+	participants := ss.hub.GetClientsByType(websocket.ClientTypeParticipant)
+	count := 0
+
+	for _, client := range participants {
+		ss.hub.RequestStateSync(client, "manual")
+		count++
+	}
+
+	ss.logger.LogAlert(fmt.Sprintf("Manual sync requested for %d participants", count))
+}
+
+// IsClientSynchronized checks if a specific client is synchronized with current state
+func (ss *StateService) IsClientSynchronized(userID int) bool {
+	if ss.hub == nil {
+		return false
+	}
+
+	syncStatus := ss.hub.GetClientSyncStatus()
+	clientState, exists := syncStatus[userID]
+	if !exists || !clientState.IsInitialized {
+		return false
+	}
+
+	currentState := string(ss.stateManager.GetCurrentState())
+	currentQuestion := ss.stateManager.GetCurrentQuestion()
+
+	return clientState.LastEventState == currentState &&
+		clientState.LastQuestionNum == currentQuestion &&
+		time.Since(clientState.LastSyncTime) < 60*time.Second
+}
+
+// GetSynchronizationReport generates a report of all client sync statuses
+func (ss *StateService) GetSynchronizationReport() map[string]interface{} {
+	if ss.hub == nil {
+		return map[string]interface{}{
+			"error": "Hub not available",
+		}
+	}
+
+	syncStatus := ss.hub.GetClientSyncStatus()
+	currentState := string(ss.stateManager.GetCurrentState())
+	currentQuestion := ss.stateManager.GetCurrentQuestion()
+
+	synchronized := 0
+	outdated := 0
+	uninitialized := 0
+
+	clientReports := make([]map[string]interface{}, 0)
+
+	for userID, clientState := range syncStatus {
+		isSync := clientState.IsInitialized &&
+			clientState.LastEventState == currentState &&
+			clientState.LastQuestionNum == currentQuestion &&
+			time.Since(clientState.LastSyncTime) < 60*time.Second
+
+		var status string
+		if !clientState.IsInitialized {
+			status = "uninitialized"
+			uninitialized++
+		} else if isSync {
+			status = "synchronized"
+			synchronized++
+		} else {
+			status = "outdated"
+			outdated++
+		}
+
+		clientReports = append(clientReports, map[string]interface{}{
+			"user_id":           userID,
+			"status":            status,
+			"last_sync_time":    clientState.LastSyncTime,
+			"last_event_state":  clientState.LastEventState,
+			"last_question_num": clientState.LastQuestionNum,
+			"sync_version":      clientState.SyncVersion,
+		})
+	}
+
+	return map[string]interface{}{
+		"current_state":    currentState,
+		"current_question": currentQuestion,
+		"total_clients":    len(syncStatus),
+		"synchronized":     synchronized,
+		"outdated":         outdated,
+		"uninitialized":    uninitialized,
+		"sync_rate":        float64(synchronized) / float64(len(syncStatus)) * 100,
+		"client_details":   clientReports,
+		"timestamp":        time.Now(),
+	}
 }

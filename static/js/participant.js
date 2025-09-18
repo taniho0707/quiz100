@@ -8,6 +8,7 @@ class QuizParticipant {
         this.lastTouchEnd = 0;
         this.answersBlocked = false;
         this.answerRevealed = false;
+        this.currentEventState = null;
 
         this.initializeElements();
         this.setupEventListeners();
@@ -173,6 +174,14 @@ class QuizParticipant {
 
             case 'ping':
                 this.handlePing(message.data);
+                break;
+
+            case 'initial_sync':
+                this.handleInitialSync(message.data);
+                break;
+
+            case 'state_sync':
+                this.handleStateSync(message.data);
                 break;
 
             default:
@@ -717,6 +726,106 @@ class QuizParticipant {
                 }
             };
             this.ws.send(JSON.stringify(pongMessage));
+        }
+    }
+
+    // State Synchronization Methods
+
+    handleInitialSync(data) {
+        console.log('Received initial sync:', data);
+
+        if (!data) {
+            console.warn('No sync data received');
+            return;
+        }
+
+        // Update current event state
+        this.currentEventState = data.event_state;
+
+        // Handle different states
+        switch (data.event_state) {
+            case 'waiting':
+            case 'started':
+            case 'title_display':
+                this.showWaiting();
+                break;
+
+            case 'team_assignment':
+                this.showWaiting(); // Show waiting during team assignment
+                break;
+
+            case 'question_active':
+                if (data.question_data) {
+                    this.showQuestion(data.question_data);
+                } else {
+                    console.warn('No question data in sync for question_active state');
+                    this.showWaiting();
+                }
+                break;
+
+            case 'countdown_active':
+                if (data.question_data) {
+                    this.showQuestion(data.question_data);
+                    // If already in countdown, disable choices
+                    this.disableChoices();
+                    this.blockAnswers();
+                } else {
+                    this.showWaiting();
+                }
+                break;
+
+            case 'answer_stats':
+            case 'answer_reveal':
+                if (data.question_data) {
+                    this.showQuestion(data.question_data);
+                    this.disableChoices();
+                    this.blockAnswers();
+
+                    // If answer is revealed, show correct answer
+                    if (data.event_state === 'answer_reveal' && data.question_data.question && data.question_data.question.correct !== undefined) {
+                        this.showCorrectAnswer(data.question_data.question.correct);
+                    }
+                } else {
+                    this.showWaiting();
+                }
+                break;
+
+            case 'results':
+            case 'celebration':
+                // Wait for actual results data via final_results message
+                this.showWaiting();
+                break;
+
+            case 'finished':
+                this.showWaiting();
+                break;
+
+            default:
+                console.log('Unknown event state in sync:', data.event_state);
+                this.showWaiting();
+        }
+
+        console.log('Initial sync completed for state:', data.event_state);
+    }
+
+    handleStateSync(data) {
+        console.log('Received state sync:', data);
+        // Handle state synchronization (similar to initial sync but for updates)
+        this.handleInitialSync(data);
+    }
+
+    // Request manual synchronization (for debugging or recovery)
+    requestSync() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const syncRequest = {
+                type: 'sync_request',
+                data: {
+                    user_id: this.user ? this.user.id : null,
+                    current_state: this.currentEventState
+                }
+            };
+            this.ws.send(JSON.stringify(syncRequest));
+            console.log('Manual sync requested');
         }
     }
 

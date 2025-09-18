@@ -21,8 +21,9 @@ class QuizScreen {
             connectionText: document.getElementById('connection-text'),
             
             eventTitle: document.getElementById('event-title'),
-            questionStatus: document.getElementById('question-status'),
-            participantCount: document.getElementById('participant-count'),
+            // questionStatus: document.getElementById('question-status'),
+            // participantCount: document.getElementById('participant-count'),
+            questionHeader: document.getElementById('question-header'),
             
             waitingScreen: document.getElementById('waiting-screen'),
             questionScreen: document.getElementById('question-screen'),
@@ -38,8 +39,8 @@ class QuizScreen {
             choicesDisplay: document.getElementById('choices-display'),
             
             answerStats: document.getElementById('answer-stats'),
-            progressFill: document.getElementById('progress-fill'),
-            answerCount: document.getElementById('answer-count'),
+            // progressFill: document.getElementById('progress-fill'),
+            // answerCount: document.getElementById('answer-count'),
             
             countdownDisplay: document.getElementById('countdown-display'),
             countdownNumber: document.getElementById('countdown-number'),
@@ -115,7 +116,8 @@ class QuizScreen {
                 break;
                 
             case 'question_end':
-                this.hideCountdown();
+                // do nothing because running 'showCountdown(1)' to set 1sec timer
+                // this.hideCountdown();
                 this.blockAnswers();
                 break;
                 
@@ -155,7 +157,6 @@ class QuizScreen {
     handleEventStarted(data) {
         this.currentEvent = data.event;
         this.elements.eventTitle.textContent = data.title;
-        this.elements.questionStatus.textContent = 'イベント開始！';
         this.showWaitingScreen();
     }
 
@@ -166,6 +167,7 @@ class QuizScreen {
         this.elements.timeUpDisplay.classList.add('hidden');
         this.showQuestionScreen();
         this.displayQuestion(data);
+        this.elements.questionHeader.style = "";
     }
 
     handleAnswerReceived(data) {
@@ -182,6 +184,8 @@ class QuizScreen {
             // 個人戦の場合は従来通り
             this.displayFinalResults(data.results);
         }
+
+        this.elements.questionHeader.style = "display: hidden;";
     }
 
     handleTitleDisplay(data) {
@@ -243,7 +247,7 @@ class QuizScreen {
         this.participants.clear();
         users.forEach(user => this.participants.set(user.id, user));
         
-        this.elements.participantCount.textContent = `参加者: ${users.length}人`;
+        // this.elements.participantCount.textContent = `参加者: ${users.length}人`;
         
         this.elements.participantsGrid.innerHTML = '';
         users.forEach(user => {
@@ -262,25 +266,21 @@ class QuizScreen {
     showWaitingScreen() {
         this.hideAllScreens();
         this.elements.waitingScreen.classList.remove('hidden');
-        this.elements.questionStatus.textContent = '参加者をお待ちしています';
     }
 
     showQuestionScreen() {
         this.hideAllScreens();
         this.elements.questionScreen.classList.remove('hidden');
-        this.elements.questionStatus.textContent = '問題進行中';
     }
 
     showResultsScreen() {
         this.hideAllScreens();
         this.elements.resultsScreen.classList.remove('hidden');
-        this.elements.questionStatus.textContent = '結果発表';
     }
 
     hideAllScreens() {
         this.elements.waitingScreen.classList.add('hidden');
         this.elements.questionScreen.classList.add('hidden');
-        this.elements.resultsScreen.classList.add('hidden');
         
         // 動的に作成された画面も非表示
         const titleScreen = document.getElementById('title-screen');
@@ -297,9 +297,9 @@ class QuizScreen {
         
         if (question.Image) {
             this.elements.questionImage.src = `/images/${question.Image}`;
-            this.elements.questionImage.classList.remove('hidden');
+            this.elements.questionImage.hidden = false;
         } else {
-            this.elements.questionImage.classList.add('hidden');
+            this.elements.questionImage.hidden = true;
         }
         
         this.displayChoices(question.Choices, question.Correct);
@@ -340,14 +340,14 @@ class QuizScreen {
     }
 
     updateAnswerProgress() {
-        if (!this.currentQuestion) return;
+        // if (!this.currentQuestion) return;
         
-        const totalParticipants = this.participants.size;
-        const answeredCount = this.getAnsweredCount();
-        const progress = totalParticipants > 0 ? (answeredCount / totalParticipants) * 100 : 0;
+        // const totalParticipants = this.participants.size;
+        // const answeredCount = this.getAnsweredCount();
+        // const progress = totalParticipants > 0 ? (answeredCount / totalParticipants) * 100 : 0;
         
-        this.elements.progressFill.style.width = `${progress}%`;
-        this.elements.answerCount.textContent = `${answeredCount} / ${totalParticipants} 回答済み`;
+        // this.elements.progressFill.style.width = `${progress}%`;
+        // this.elements.answerCount.textContent = `${answeredCount} / ${totalParticipants} 回答済み`;
     }
 
     getAnsweredCount() {
@@ -356,82 +356,76 @@ class QuizScreen {
 
     displayFinalResults(results) {
         results.sort((a, b) => b.score - a.score);
-        
-        this.elements.rankingsDisplay.innerHTML = '';
-        
-        results.slice(0, 10).forEach((user, index) => {
+
+        // 表彰台（1-3位）を表示
+        if (results.length >= 1) {
+            document.getElementById('first-place-team').textContent = results[0].nickname;
+            document.getElementById('first-place-score').textContent = results[0].score;
+        }
+        if (results.length >= 2) {
+            document.getElementById('second-place-team').textContent = results[1].nickname;
+            document.getElementById('second-place-score').textContent = results[1].score;
+        }
+        if (results.length >= 3) {
+            document.getElementById('third-place-team').textContent = results[2].nickname;
+            document.getElementById('third-place-score').textContent = results[2].score;
+        }
+
+        // 一般順位（4位以下）をグリッドに表示
+        const generalRankings = document.getElementById('general-rankings');
+        generalRankings.innerHTML = '';
+
+        // 4位以下、最大47位まで（11×5グリッド - 3 = 52 - 3 = 47位まで）
+        results.slice(3, 50).forEach((user, index) => {
+            const rank = index + 4; // 4位からスタート
             const item = document.createElement('div');
             item.className = 'ranking-item';
-            
-            let trophy = '';
-            if (index === 0) trophy = '🥇';
-            else if (index === 1) trophy = '🥈';
-            else if (index === 2) trophy = '🥉';
-            
+
             item.innerHTML = `
-                <span class="rank">${trophy} ${index + 1}位</span>
-                <span class="name">${user.nickname}</span>
-                <span class="score">${user.score}点</span>
+                <div class="rank">${rank}位</div>
+                <div class="team-name">${user.nickname}</div>
+                <div class="team-score">${user.score}点</div>
             `;
-            
-            this.elements.rankingsDisplay.appendChild(item);
+
+            generalRankings.appendChild(item);
         });
     }
 
     displayTeamResults(teams) {
         // チームを得点順にソート
         teams.sort((a, b) => b.score - a.score);
-        
-        this.elements.rankingsDisplay.innerHTML = '';
-        
-        teams.forEach((team, index) => {
-            const teamItem = document.createElement('div');
-            teamItem.className = 'team-ranking-item';
-            
-            let trophy = '';
-            if (index === 0) trophy = '🥇';
-            else if (index === 1) trophy = '🥈';
-            else if (index === 2) trophy = '🥉';
-            
-            // チーム情報のヘッダー
-            const teamHeader = document.createElement('div');
-            teamHeader.className = 'team-header';
-            teamHeader.innerHTML = `
-                <span class="rank">${trophy} ${index + 1}位</span>
-                <span class="team-name">${team.name}</span>
-                <span class="team-score">${team.score}点</span>
+
+        // 表彰台（1-3位）を表示
+        if (teams.length >= 1) {
+            document.getElementById('first-place-team').textContent = teams[0].name;
+            document.getElementById('first-place-score').textContent = teams[0].score;
+        }
+        if (teams.length >= 2) {
+            document.getElementById('second-place-team').textContent = teams[1].name;
+            document.getElementById('second-place-score').textContent = teams[1].score;
+        }
+        if (teams.length >= 3) {
+            document.getElementById('third-place-team').textContent = teams[2].name;
+            document.getElementById('third-place-score').textContent = teams[2].score;
+        }
+
+        // 一般順位（4位以下）をグリッドに表示
+        const generalRankings = document.getElementById('general-rankings');
+        generalRankings.innerHTML = '';
+
+        // 4位以下、最大50位まで（11×5グリッド = 55セルあるが、実際は47チーム分まで）
+        teams.slice(3, 50).forEach((team, index) => {
+            const rank = index + 4; // 4位からスタート
+            const item = document.createElement('div');
+            item.className = 'ranking-item';
+
+            item.innerHTML = `
+                <div class="rank">${rank}位</div>
+                <div class="team-name">${team.name}</div>
+                <div class="team-score">${team.score}点</div>
             `;
-            teamItem.appendChild(teamHeader);
-            
-            // チームメンバーの詳細
-            if (team.members && team.members.length > 0) {
-                const membersDiv = document.createElement('div');
-                membersDiv.className = 'team-members';
-                
-                // メンバーを得点順にソート
-                const sortedMembers = [...team.members].sort((a, b) => b.score - a.score);
-                
-                sortedMembers.forEach((member, memberIndex) => {
-                    const memberDiv = document.createElement('div');
-                    memberDiv.className = 'team-member';
-                    
-                    let memberTrophy = '';
-                    if (memberIndex === 0 && sortedMembers.length > 1) {
-                        memberTrophy = '👑'; // チーム内1位
-                    }
-                    
-                    memberDiv.innerHTML = `
-                        <span class="member-name">${memberTrophy} ${member.nickname}</span>
-                        <span class="member-score">${member.score}点</span>
-                    `;
-                    
-                    membersDiv.appendChild(memberDiv);
-                });
-                
-                teamItem.appendChild(membersDiv);
-            }
-            
-            this.elements.rankingsDisplay.appendChild(teamItem);
+
+            generalRankings.appendChild(item);
         });
     }
 
@@ -484,7 +478,7 @@ class QuizScreen {
             setTimeout(() => {
                 this.hideCountdown();
                 this.showTimeUp();
-            }, 1000);
+            }, 1300);
         }
     }
     
@@ -525,7 +519,6 @@ class QuizScreen {
             document.querySelector('.screen-content').appendChild(titleScreen);
         }
         titleScreen.classList.remove('hidden');
-        this.elements.questionStatus.textContent = 'タイトル表示中';
     }
 
     showTeamAssignmentScreen(teams) {
@@ -567,54 +560,51 @@ class QuizScreen {
         });
         
         teamScreen.classList.remove('hidden');
-        this.elements.questionStatus.textContent = 'チーム発表中';
     }
 
     showAnswerStatsScreen(data) {
         // この情報を問題画面に重ねて表示
         this.elements.questionScreen.classList.remove('hidden');
         
-        // 問題情報を表示（まだ表示されていない場合）
-        if (data.question) {
-            const questionData = {
-                question: data.question,
-                question_number: this.elements.currentQuestionNum.textContent || '1'
-            };
-            this.displayQuestion(questionData);
-        }
+        // // 問題情報を表示（まだ表示されていない場合）
+        // if (data.question) {
+        //     const questionData = {
+        //         question: data.question,
+        //         question_number: this.elements.currentQuestionNum.textContent || '1'
+        //     };
+        //     this.displayQuestion(questionData);
+        // }
         
-        // 回答状況表示を更新
-        const progressFill = this.elements.progressFill;
-        const answerCount = this.elements.answerCount;
+        // // 回答状況表示を更新
+        // const progressFill = this.elements.progressFill;
+        // const answerCount = this.elements.answerCount;
         
-        const progress = data.total_participants > 0 ? 
-            (data.answered_count / data.total_participants) * 100 : 0;
+        // const progress = data.total_participants > 0 ? 
+        //     (data.answered_count / data.total_participants) * 100 : 0;
         
-        progressFill.style.width = `${progress}%`;
-        answerCount.textContent = `${data.answered_count} / ${data.total_participants} 回答済み`;
+        // progressFill.style.width = `${progress}%`;
+        // answerCount.textContent = `${data.answered_count} / ${data.total_participants} 回答済み`;
         
         // 各選択肢に回答人数を表示
         this.showChoicesWithCounts(data.question, data.choices_counts);
         
-        // 正解率も表示
-        if (!document.getElementById('correct-rate-display')) {
-            const correctRateDiv = document.createElement('div');
-            correctRateDiv.id = 'correct-rate-display';
-            correctRateDiv.className = 'correct-rate-display';
-            correctRateDiv.innerHTML = `
-                <h3>📊 正解率: ${Math.round(data.correct_rate)}%</h3>
-                <p>正解者: ${data.correct_count}人 / 回答者: ${data.answered_count}人</p>
-            `;
-            this.elements.answerStats.appendChild(correctRateDiv);
-        } else {
-            const correctRateDiv = document.getElementById('correct-rate-display');
-            correctRateDiv.innerHTML = `
-                <h3>📊 正解率: ${Math.round(data.correct_rate)}%</h3>
-                <p>正解者: ${data.correct_count}人 / 回答者: ${data.answered_count}人</p>
-            `;
-        }
-        
-        this.elements.questionStatus.textContent = '回答状況表示中';
+        // // 正解率も表示
+        // if (!document.getElementById('correct-rate-display')) {
+        //     const correctRateDiv = document.createElement('div');
+        //     correctRateDiv.id = 'correct-rate-display';
+        //     correctRateDiv.className = 'correct-rate-display';
+        //     correctRateDiv.innerHTML = `
+        //         <h3>📊 正解率: ${Math.round(data.correct_rate)}%</h3>
+        //         <p>正解者: ${data.correct_count}人 / 回答者: ${data.answered_count}人</p>
+        //     `;
+        //     this.elements.answerStats.appendChild(correctRateDiv);
+        // } else {
+        //     const correctRateDiv = document.getElementById('correct-rate-display');
+        //     correctRateDiv.innerHTML = `
+        //         <h3>📊 正解率: ${Math.round(data.correct_rate)}%</h3>
+        //         <p>正解者: ${data.correct_count}人 / 回答者: ${data.answered_count}人</p>
+        //     `;
+        // }
     }
 
     showAnswerRevealScreen(data) {
@@ -635,8 +625,6 @@ class QuizScreen {
         if (correctRateDiv) {
             correctRateDiv.remove();
         }
-        
-        this.elements.questionStatus.textContent = '正解発表中';
     }
 
     showCelebrationScreen() {
@@ -644,7 +632,6 @@ class QuizScreen {
         // 結果画面を表示してクラッカーアニメーション開始
         this.elements.resultsScreen.classList.remove('hidden');
         this.startConfettiAnimation();
-        this.elements.questionStatus.textContent = '🎉 お疲れ様でした！';
     }
 
     startConfettiAnimation() {
@@ -737,9 +724,6 @@ class QuizScreen {
     handleStateChanged(data) {
         console.log('State changed:', data.new_state);
         
-        // Update question status display using shared constants
-        this.elements.questionStatus.textContent = QuizUtils.StateUtils.getStateLabel(data.new_state);
-        
         // Handle state-specific transitions using constants
         const { EVENT_STATES } = QuizConstants;
         
@@ -777,7 +761,7 @@ class QuizScreen {
                 break;
                 
             case EVENT_STATES.ANSWER_STATS:
-                this.hideAllScreens();
+                // this.hideAllScreens();
                 this.elements.answerStats.style.display = 'block';
                 break;
                 
@@ -798,7 +782,6 @@ class QuizScreen {
                 
             case EVENT_STATES.FINISHED:
                 this.showWaitingScreen();
-                this.elements.questionStatus.textContent = QuizUtils.StateUtils.getStateLabel(EVENT_STATES.FINISHED);
                 break;
         }
     }

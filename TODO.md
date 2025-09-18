@@ -15,6 +15,7 @@
                     <p>接続: <span id="connection-status-display">🔴 未接続</span></p>
                 </div>
 ```
+- admin.js で currentEvent が使われているかどうかを確認
 
 # リファクタリング実装計画
 

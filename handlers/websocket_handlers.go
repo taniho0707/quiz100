@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"quiz100/models"
+	"quiz100/services"
 	"quiz100/websocket"
 	"runtime"
 	"time"
@@ -21,6 +23,7 @@ type WebSocketHandlers struct {
 	logger         models.QuizLogger
 	config         *models.Config
 	currentEvent   *models.Event
+	stateService   *services.StateService
 }
 
 // NewWebSocketHandlers creates a new WebSocketHandlers instance
@@ -33,6 +36,7 @@ func NewWebSocketHandlers(
 	eventRepo *models.EventRepository,
 	logger models.QuizLogger,
 	config *models.Config,
+	stateService *services.StateService,
 ) *WebSocketHandlers {
 	return &WebSocketHandlers{
 		hub:            hub,
@@ -43,6 +47,7 @@ func NewWebSocketHandlers(
 		eventRepo:      eventRepo,
 		logger:         logger,
 		config:         config,
+		stateService:   stateService,
 	}
 }
 
@@ -183,4 +188,97 @@ func (wh *WebSocketHandlers) GetTeams(c *gin.Context) {
 // SetCurrentEvent sets the current event (for handlers that need it)
 func (wh *WebSocketHandlers) SetCurrentEvent(event *models.Event) {
 	wh.currentEvent = event
+}
+
+// State Synchronization Endpoints
+
+// GetSyncStatus returns synchronization status for all clients
+func (wh *WebSocketHandlers) GetSyncStatus(c *gin.Context) {
+	if wh.stateService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "State service not available",
+		})
+		return
+	}
+
+	syncReport := wh.stateService.GetSynchronizationReport()
+	c.JSON(http.StatusOK, syncReport)
+}
+
+// RequestClientSync manually requests synchronization for a specific client
+func (wh *WebSocketHandlers) RequestClientSync(c *gin.Context) {
+	if wh.stateService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "State service not available",
+		})
+		return
+	}
+
+	var request struct {
+		UserID   int    `json:"user_id" binding:"required"`
+		SyncType string `json:"sync_type"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request format",
+		})
+		return
+	}
+
+	if request.SyncType == "" {
+		request.SyncType = "manual"
+	}
+
+	wh.stateService.RequestClientSync(request.UserID, request.SyncType)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Sync requested successfully",
+		"user_id":   request.UserID,
+		"sync_type": request.SyncType,
+	})
+}
+
+// SyncAllClients forces synchronization for all connected participants
+func (wh *WebSocketHandlers) SyncAllClients(c *gin.Context) {
+	if wh.stateService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "State service not available",
+		})
+		return
+	}
+
+	wh.stateService.SyncAllClients()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Sync requested for all participants",
+	})
+}
+
+// CheckClientSync checks if a specific client is synchronized
+func (wh *WebSocketHandlers) CheckClientSync(c *gin.Context) {
+	if wh.stateService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "State service not available",
+		})
+		return
+	}
+
+	userIDStr := c.Param("user_id")
+	userID := 0
+	if _, err := fmt.Sscanf(userIDStr, "%d", &userID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid user ID",
+		})
+		return
+	}
+
+	isSynchronized := wh.stateService.IsClientSynchronized(userID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id":          userID,
+		"synchronized":     isSynchronized,
+		"current_state":    wh.stateService.GetCurrentState(),
+		"current_question": wh.stateService.GetCurrentQuestion(),
+	})
 }

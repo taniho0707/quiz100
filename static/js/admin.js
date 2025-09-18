@@ -8,6 +8,7 @@ class QuizAdmin {
         this.answers = new Map();
         this.teamMode = false;
         this.pingResults = new Map(); // Store ping results per user
+        this.syncStatus = new Map(); // Store sync status for users
         this.sortMode = 'name'; // 'name', 'score', 'ping'
 
         this.initializeElements();
@@ -16,6 +17,9 @@ class QuizAdmin {
         this.connectWebSocket();
         this.loadStatus();
         this.loadAvailableStates();
+
+        // Start periodic sync status monitoring
+        this.startSyncStatusMonitoring();
     }
 
     initializeElements() {
@@ -86,6 +90,16 @@ class QuizAdmin {
         this.elements.sortByNameBtn?.addEventListener('click', () => this.setSortMode('name'));
         this.elements.sortByScoreBtn?.addEventListener('click', () => this.setSortMode('score'));
         this.elements.sortByPingBtn?.addEventListener('click', () => this.setSortMode('ping'));
+
+        // 参加者リストの動的ボタンイベント（イベントデリゲーション）
+        this.elements.participantsList?.addEventListener('click', (e) => {
+            if (e.target.classList.contains('participant-button-sync')) {
+                const userID = parseInt(e.target.getAttribute('data-user-id'));
+                if (userID) {
+                    this.requestClientSync(userID);
+                }
+            }
+        });
     }
 
     connectWebSocket() {
@@ -567,17 +581,46 @@ class QuizAdmin {
                 pingStatusHtml = '<span class="ping-status unknown">--ms</span>';
             }
 
+            // Get sync status for this user
+            const syncData = this.syncStatus.get(user.id);
+            let syncStatusHtml = '<span class="sync-status unknown">🔄 未知</span>';
+
+            if (syncData) {
+                const syncAge = Date.now() - new Date(syncData.last_sync_time).getTime();
+                const isOutdated = syncAge > 60000; // More than 1 minute old
+
+                switch (syncData.status) {
+                    case 'synchronized':
+                        syncStatusHtml = `<span class="sync-status synchronized">✓ 同期済</span>`;
+                        break;
+                    case 'outdated':
+                        syncStatusHtml = `<span class="sync-status outdated">⚠ 古い</span>`;
+                        break;
+                    case 'uninitialized':
+                        syncStatusHtml = `<span class="sync-status uninitialized">🔄 未初期化</span>`;
+                        break;
+                    default:
+                        syncStatusHtml = `<span class="sync-status unknown">❓ 不明</span>`;
+                }
+
+                if (isOutdated && syncData.status === 'synchronized') {
+                    syncStatusHtml = `<span class="sync-status outdated">⏰ 期限切れ</span>`;
+                }
+            }
+
             item.innerHTML = `
                 <div class="participant-info">
                     <div class="connection-status ${user.connected ? '' : 'disconnected'}"></div>
                     <span class="participant-name">${user.nickname}</span>
                     ${pingStatusHtml}
+                    ${syncStatusHtml}
                 </div>
                 <span class="participant-score">${user.score}点</span>
                 <div class="participant-control">
                     <button class="smallbtn participant-button-delete">削除</div>
                     <button class="smallbtn participant-button-resetscore">成績消去</div>
                     <button class="smallbtn participant-button-changename">名前変更</div>
+                    <button class="smallbtn participant-button-sync" data-user-id="${user.id}">🔄 同期</div>
                 </div>
             `;
 
@@ -898,6 +941,100 @@ class QuizAdmin {
     updateCurrentStateDisplay(currentState) {
         // Update the event status display using shared constants
         this.elements.eventStatus.textContent = QuizUtils.StateUtils.getStateLabel(currentState);
+    }
+
+    // Sync Status Management
+
+    startSyncStatusMonitoring() {
+        // Load sync status every 10 seconds
+        this.loadSyncStatus();
+        this.syncStatusInterval = setInterval(() => {
+            this.loadSyncStatus();
+        }, 10000);
+    }
+
+    async loadSyncStatus() {
+        try {
+            const response = await fetch('/api/ws/sync-status');
+            if (response.ok) {
+                const data = await response.json();
+                this.updateSyncStatusDisplay(data);
+            }
+        } catch (error) {
+            console.error('Failed to load sync status:', error);
+        }
+    }
+
+    updateSyncStatusDisplay(syncReport) {
+        // Update sync status for each client
+        if (syncReport.client_details) {
+            this.syncStatus.clear();
+            syncReport.client_details.forEach(client => {
+                this.syncStatus.set(client.user_id, client);
+            });
+
+            // Update participants display to show sync status
+            this.updateParticipantsDisplay();
+        }
+
+        // Log sync rate if needed
+        if (syncReport.sync_rate !== undefined && syncReport.sync_rate < 80) {
+            this.addLog(`同期率が低下しています: ${syncReport.sync_rate.toFixed(1)}% (${syncReport.synchronized}/${syncReport.total_clients})`, 'warning');
+        }
+    }
+
+    async requestClientSync(userID) {
+        try {
+            const response = await fetch('/api/ws/sync-client', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userID,
+                    sync_type: 'manual'
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.addLog(`ユーザー${userID}の手動同期を要求しました`, 'info');
+
+                // Reload sync status after a short delay
+                setTimeout(() => this.loadSyncStatus(), 1000);
+            } else {
+                const error = await response.json();
+                this.addLog(`同期要求エラー: ${error.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Client sync request failed:', error);
+            this.addLog('同期要求に失敗しました', 'error');
+        }
+    }
+
+    async syncAllClients() {
+        try {
+            const response = await fetch('/api/ws/sync-all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.addLog('全参加者の手動同期を要求しました', 'info');
+
+                // Reload sync status after a short delay
+                setTimeout(() => this.loadSyncStatus(), 1000);
+            } else {
+                const error = await response.json();
+                this.addLog(`全体同期要求エラー: ${error.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Sync all clients failed:', error);
+            this.addLog('全体同期要求に失敗しました', 'error');
+        }
     }
 
     async handleStateJump() {

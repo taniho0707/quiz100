@@ -10,9 +10,8 @@
     <div class="screen-container">
         <header class="screen-header">
             <h1 id="event-title">クイズ大会</h1>
-            <div class="status-bar">
-                <span id="question-status">開始までお待ちください</span>
-                <span id="participant-count">参加者: 0人</span>
+            <div class="question-header" id="question-header" hidden>
+                <span class="question-number">Q<span id="current-question-num">1</span></span>
             </div>
         </header>
 
@@ -36,21 +35,16 @@
             </div>
 
             <div id="question-screen" class="screen-section hidden">
-                <div class="question-header">
-                    <span class="question-number">Q<span id="current-question-num">1</span></span>
-                    <!-- <span class="question-total">/ <span id="total-questions">5</span></span> -->
-                </div>
-                
                 <div class="question-content">
                     <h2 id="question-text">問題文がここに表示されます</h2>
-                    <img id="question-image" class="question-image hidden" src="" alt="問題画像">
+                    <img id="question-image" class="question-image" src="" alt="">
                 </div>
                 
                 <div class="choices-display" id="choices-display">
                     <!-- 選択肢がここに表示されます -->
                 </div>
 
-                <div class="answer-stats" id="answer-stats">
+                <!-- <div class="answer-stats" id="answer-stats">
                     <h3>📊 回答状況</h3>
                     <div id="answer-progress" class="answer-progress">
                         <div class="progress-bar">
@@ -58,7 +52,7 @@
                         </div>
                         <span id="answer-count">0 / 0 回答済み</span>
                     </div>
-                </div>
+                </div> -->
                 
                 <div id="countdown-number" class="countdown-number-display hidden">5</div>
                 
@@ -72,7 +66,25 @@
             <div id="results-screen" class="screen-section hidden">
                 <h2>🏆 最終結果</h2>
                 <div id="rankings-display" class="rankings-display">
-                    <!-- ランキングがここに表示されます -->
+                    <!-- 表彰台エリア（1-3位） -->
+                    <div class="podium-area">
+                        <div class="first-place">
+                            <span>🥇 <span id="first-place-team">チーム名</span> (<span id="first-place-score">0</span>点)</span>
+                        </div>
+                        <div class="second-third-place">
+                            <div class="second-place">
+                                <span>🥈 <span id="second-place-team">チーム名</span> (<span id="second-place-score">0</span>点)</span>
+                            </div>
+                            <div class="third-place">
+                                <span>🥉 <span id="third-place-team">チーム名</span> (<span id="third-place-score">0</span>点)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 一般順位エリア（4-50位） -->
+                    <div id="general-rankings" class="general-rankings">
+                        <!-- 4位以下のランキングがここに動的生成されます -->
+                    </div>
                 </div>
             </div>
         </main>
@@ -81,11 +93,9 @@
             <!-- 絵文字リアクションがここに表示されます -->
         </div>
 
-        <footer class="screen-footer">
-            <div id="connection-status" class="connection-status">
-                <span id="connection-text">接続中...</span>
-            </div>
-        </footer>
+        <div id="connection-status" class="connection-status">
+            <span id="connection-text">接続中...</span>
+        </div>
     </div>
 
     <!-- Common utility scripts -->

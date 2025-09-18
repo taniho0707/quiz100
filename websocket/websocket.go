@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
@@ -35,6 +36,38 @@ type Hub struct {
 	StartTime      time.Time
 	TotalConnected int64
 	MessagesSent   int64
+
+	// State synchronization
+	ClientStates   map[*Client]*ClientState
+	LastEventState *EventSyncData
+	StateSync      chan *StateSyncRequest
+}
+
+// ClientState tracks individual client synchronization state
+type ClientState struct {
+	LastSyncTime    time.Time
+	SyncVersion     int
+	IsInitialized   bool
+	LastEventState  string
+	LastQuestionNum int
+}
+
+// EventSyncData contains all data needed for state synchronization
+type EventSyncData struct {
+	EventState      string                 `json:"event_state"`
+	CurrentQuestion int                    `json:"current_question"`
+	QuestionData    map[string]interface{} `json:"question_data,omitempty"`
+	TeamData        []interface{}          `json:"team_data,omitempty"`
+	ParticipantData []interface{}          `json:"participant_data,omitempty"`
+	SyncVersion     int                    `json:"sync_version"`
+	Timestamp       time.Time              `json:"timestamp"`
+}
+
+// StateSyncRequest represents a state synchronization request
+type StateSyncRequest struct {
+	Client      *Client
+	SyncType    string // "initial", "reconnect", "periodic"
+	RequestData map[string]interface{}
 }
 
 type Message struct {
@@ -52,11 +85,13 @@ var upgrader = websocket.Upgrader{
 
 func NewHub() *Hub {
 	return &Hub{
-		Clients:    make(map[*Client]bool),
-		Broadcast:  make(chan []byte),
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
-		StartTime:  time.Now(),
+		Clients:      make(map[*Client]bool),
+		Broadcast:    make(chan []byte),
+		Register:     make(chan *Client),
+		Unregister:   make(chan *Client),
+		StartTime:    time.Now(),
+		ClientStates: make(map[*Client]*ClientState),
+		StateSync:    make(chan *StateSyncRequest, 100),
 	}
 }
 
@@ -67,13 +102,35 @@ func (h *Hub) Run() {
 			h.mutex.Lock()
 			h.Clients[client] = true
 			h.TotalConnected++
+			// Initialize client state for participants
+			if client.Type == ClientTypeParticipant {
+				h.ClientStates[client] = &ClientState{
+					LastSyncTime:    time.Now(),
+					SyncVersion:     0,
+					IsInitialized:   false,
+					LastEventState:  "",
+					LastQuestionNum: 0,
+				}
+			}
 			h.mutex.Unlock()
 			log.Printf("Client registered: %s (UserID: %d)", client.Type, client.UserID)
+
+			// Trigger initial sync for participants
+			if client.Type == ClientTypeParticipant {
+				go func() {
+					time.Sleep(100 * time.Millisecond) // Wait for connection establishment
+					h.StateSync <- &StateSyncRequest{
+						Client:   client,
+						SyncType: "initial",
+					}
+				}()
+			}
 
 		case client := <-h.Unregister:
 			h.mutex.Lock()
 			if _, ok := h.Clients[client]; ok {
 				delete(h.Clients, client)
+				delete(h.ClientStates, client) // Clean up client state
 				close(client.Send)
 				log.Printf("Client unregistered: %s (UserID: %d)", client.Type, client.UserID)
 			}
@@ -84,6 +141,9 @@ func (h *Hub) Run() {
 			h.mutex.Lock()
 			h.MessagesSent++
 			h.mutex.Unlock()
+
+		case syncRequest := <-h.StateSync:
+			h.handleStateSyncRequest(syncRequest)
 		}
 	}
 }
@@ -292,4 +352,162 @@ func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request, clientType Client
 
 	go client.WritePump()
 	go client.ReadPump(hub, onMessage)
+}
+
+// State synchronization methods
+
+// handleStateSyncRequest processes state synchronization requests
+func (h *Hub) handleStateSyncRequest(request *StateSyncRequest) {
+	if request.Client.Type != ClientTypeParticipant {
+		return // Only sync participants
+	}
+
+	h.mutex.Lock()
+	clientState, exists := h.ClientStates[request.Client]
+	if !exists {
+		h.mutex.Unlock()
+		return
+	}
+
+	// Get latest event state
+	eventState := h.LastEventState
+	h.mutex.Unlock()
+
+	if eventState == nil {
+		log.Printf("No event state available for sync, skipping client %d", request.Client.UserID)
+		return
+	}
+
+	// Check if sync is needed
+	if request.SyncType == "initial" ||
+		clientState.LastEventState != eventState.EventState ||
+		clientState.LastQuestionNum != eventState.CurrentQuestion ||
+		!clientState.IsInitialized {
+
+		h.sendInitialSync(request.Client, eventState)
+
+		// Update client state
+		h.mutex.Lock()
+		clientState.LastSyncTime = time.Now()
+		clientState.SyncVersion = eventState.SyncVersion
+		clientState.IsInitialized = true
+		clientState.LastEventState = eventState.EventState
+		clientState.LastQuestionNum = eventState.CurrentQuestion
+		h.mutex.Unlock()
+
+		log.Printf("State sync completed for client %d (type: %s)", request.Client.UserID, request.SyncType)
+	}
+}
+
+// sendInitialSync sends initial synchronization data to a client
+func (h *Hub) sendInitialSync(client *Client, eventState *EventSyncData) {
+	message := Message{
+		Type: string(MessageInitialSync),
+		Data: eventState,
+	}
+
+	jsonData, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Error marshaling initial sync data: %v", err)
+		return
+	}
+
+	select {
+	case client.Send <- jsonData:
+		log.Printf("Initial sync sent to client %d", client.UserID)
+	default:
+		log.Printf("Failed to send initial sync to client %d (channel full)", client.UserID)
+	}
+}
+
+// UpdateEventState updates the global event state for synchronization
+func (h *Hub) UpdateEventState(eventState *EventSyncData) {
+	h.mutex.Lock()
+	eventState.SyncVersion++
+	eventState.Timestamp = time.Now()
+	h.LastEventState = eventState
+	h.mutex.Unlock()
+
+	log.Printf("Event state updated: %s (Question: %d, Version: %d)",
+		eventState.EventState, eventState.CurrentQuestion, eventState.SyncVersion)
+}
+
+// RequestStateSync allows external components to request state synchronization
+func (h *Hub) RequestStateSync(client *Client, syncType string) {
+	if client.Type != ClientTypeParticipant {
+		return
+	}
+
+	select {
+	case h.StateSync <- &StateSyncRequest{
+		Client:   client,
+		SyncType: syncType,
+	}:
+	default:
+		log.Printf("StateSync channel full, dropping sync request for client %d", client.UserID)
+	}
+}
+
+// StartPeriodicSync starts a goroutine that periodically checks for clients needing sync
+func (h *Hub) StartPeriodicSync(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			h.checkAndSyncOutdatedClients()
+		}
+	}()
+	log.Printf("Periodic sync started with interval: %v", interval)
+}
+
+// checkAndSyncOutdatedClients checks for clients that need state synchronization
+func (h *Hub) checkAndSyncOutdatedClients() {
+	h.mutex.RLock()
+	currentEventState := h.LastEventState
+
+	var outdatedClients []*Client
+	for client, state := range h.ClientStates {
+		if client.Type == ClientTypeParticipant {
+			// Check if client needs sync (state mismatch or too old)
+			if currentEventState != nil &&
+				(state.LastEventState != currentEventState.EventState ||
+					state.LastQuestionNum != currentEventState.CurrentQuestion ||
+					time.Since(state.LastSyncTime) > 30*time.Second) {
+				outdatedClients = append(outdatedClients, client)
+			}
+		}
+	}
+	h.mutex.RUnlock()
+
+	// Trigger sync for outdated clients
+	for _, client := range outdatedClients {
+		h.RequestStateSync(client, "periodic")
+	}
+
+	if len(outdatedClients) > 0 {
+		log.Printf("Triggered periodic sync for %d outdated clients", len(outdatedClients))
+	}
+}
+
+// GetClientSyncStatus returns synchronization status for all clients
+func (h *Hub) GetClientSyncStatus() map[int]*ClientState {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	status := make(map[int]*ClientState)
+	for client, state := range h.ClientStates {
+		if client.Type == ClientTypeParticipant {
+			// Create a copy to avoid race conditions
+			status[client.UserID] = &ClientState{
+				LastSyncTime:    state.LastSyncTime,
+				SyncVersion:     state.SyncVersion,
+				IsInitialized:   state.IsInitialized,
+				LastEventState:  state.LastEventState,
+				LastQuestionNum: state.LastQuestionNum,
+			}
+		}
+	}
+
+	return status
 }

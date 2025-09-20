@@ -5,7 +5,6 @@
 {
   "type": "メッセージタイプ",
   "data": {任意のデータ},
-  "target": "対象クライアント（オプション）"
 }
 ```
 
@@ -17,68 +16,45 @@
 ## メッセージタイプ一覧
 
 ### イベント進行メッセージ
-- `event_started`: イベント開始
-- `title_display`: タイトル表示（スクリーン専用）
-- `team_assignment`: チーム分け結果
-- `question_start`: 問題開始
-- `question_end`: 問題終了
-- `countdown`: カウントダウン（5秒→1秒）
-- `answer_stats`: 回答状況表示（スクリーン専用）
-- `answer_reveal`: 回答発表
-- `final_results`: 最終結果
-- `celebration`: お疲れ様画面（スクリーン専用）
+- `title_display`: タイトル表示 (screen)
+- `team_assignment`: チーム分け結果 (admin/screen)
+- `question_start`: 問題開始 (admin/screen/participant)
+- `countdown`: カウントダウン (5秒のみ)
+- `question_end`: 問題終了 (admin/screen/participant)
+- `answer_stats`: 回答状況表示 (admin/screen/participant)
+- `answer_reveal`: 回答発表 (admin/screen)
+- `final_results`: 最終結果 (admin/screen/participant)
 
 ### ユーザー操作メッセージ
-- `user_joined`: ユーザー参加通知（管理者・スクリーン）
-- `user_left`: ユーザー離脱通知（管理者・スクリーン）
-- `answer_received`: 回答受信通知（管理者専用）
-- `emoji`: 絵文字リアクション（スクリーン専用）
-- `team_member_added`: チームメンバー追加
+- `user_joined`: ユーザー参加通知 (admin/screen)
+- `user_left`: ユーザー離脱通知 (admin/screen)
+- `answer_received`: 回答受信通知 (admin)
+- `emoji`: 絵文字リアクション (admin/screen)
+- `team_member_added`: チームメンバー追加 (admin/participant)
 
 ### 状態管理メッセージ
-- `state_changed`: 状態変更通知
-- `initial_sync`: 初期同期
-- `state_sync`: 状態同期
-- `sync_request`: 同期要求
-- `sync_complete`: 同期完了
+- `state_changed`: 状態変更通知 = デバッグ専用
+- `initial_sync`: 初期同期 (admin/screen/participant)
+- `state_sync`: 状態同期 (admin/screen/participant)
 
 ### 通信監視メッセージ
-- `ping`: ping送信（管理者→参加者）
-- `pong`: pong応答（参加者→管理者）
-- `ping_result`: ping結果（管理者専用）
+- `ping`: ping送信 (participant)
+- `pong`: pong応答 (participant)
+- `ping_result`: ping結果 (admin)
 
 ## 主要メッセージのデータ例
 
-### question_start
+### title_display: screen
 ```json
 {
-  "type": "question_start",
+  "type": "title_display",
   "data": {
-    "question_number": 1,
-    "question": {
-      "text": "問題文",
-      "image": "画像ファイル名（オプション）",
-      "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"]
-    }
-  }
+    "title": "新年会クイズ大会"
+  },
 }
 ```
 
-### answer_stats
-```json
-{
-  "type": "answer_stats",
-  "data": {
-    "total_participants": 10,
-    "answered_count": 8,
-    "correct_count": 5,
-    "correct_rate": 62.5,
-    "answer_breakdown": [2, 3, 2, 1]
-  }
-}
-```
-
-### team_assignment
+### team_assignment: admin/screen
 ```json
 {
   "type": "team_assignment",
@@ -91,28 +67,66 @@
 }
 ```
 
-### countdown
+### question_start: admin/screen/participant
+```json
+{
+  "type": "question_start",
+  "data": {
+    "question_number": 1,
+    "question": {
+      "type": "text",
+      "text": "問題文",
+      "image": "画像ファイル名（オプション）",
+      "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"]
+    },
+    "correct": 0, // only for admin
+    "total_questions": 5 // only for admin
+  }
+}
+```
+
+### countdown: screen
+カウントダウン開始のみ通知、0と同時にquestion_endと同様の表示に自動遷移
 ```json
 {
   "type": "countdown",
   "data": {
-    "seconds_left": 3
+    "seconds_left": 5
   }
 }
 ```
 
-### emoji
+### question_end: admin/screen/participant
 ```json
 {
-  "type": "emoji",
+  "type": "question_end",
+  "data": {}
+}
+```
+
+### answer_stats: admin/screen
+```json
+{
+  "type": "answer_stats",
   "data": {
-    "emoji": "😊",
-    "user_nickname": "太郎"
+    "total_participants": 10,
+    "choices_counts": [2, 3, 2, 1]
   }
 }
 ```
 
-### final_results
+### answer_reveal: admin/screen
+```json
+{
+  "type": "answer_reveal",
+  "data": {
+    "correct": 0,
+  }
+}
+```
+
+### final_results: admin/screen/participant
+時間経過後に celebration 同等の表示を行う
 ```json
 {
   "type": "final_results",
@@ -125,6 +139,104 @@
       {"name": "チーム1", "score": 165, "rank": 1}
     ],
     "team_mode": true
+  }
+}
+```
+
+### user_joined: admin/screen
+```json
+{
+  "type": "user_joined",
+  "data": {
+    "team_id": 1 | null,
+    "nickname": "太郎",
+    "score": 0,
+  }
+}
+```
+
+### user_left: admin/screen
+```json
+{
+  "type": "user_left",
+  "data": {
+    "nickname": "太郎",
+    "team_id": 1 | null
+  }
+}
+```
+
+### answer_received: admin
+```json
+{
+  "type": "answer_received",
+  "data": {
+    "nickname": "太郎",
+    "answer": 0
+  }
+}
+```
+
+### emoji: admin/screen
+```json
+{
+  "type": "emoji",
+  "data": {
+    "emoji": "😊",
+    "nickname": "太郎"
+  }
+}
+```
+
+### team_member_added: admin/participant
+```json
+{
+  "type": "team_member_added",
+  "data": {
+    "team_id": 1,
+    "nickname": "太郎"
+  }
+}
+```
+
+### state_changed (for debug)
+```json
+
+```
+
+### initial_sync: admin/screen/participant
+```json
+
+```
+
+### state_sync: admin/screen/participant
+```json
+
+```
+
+### ping: participant
+```json
+{
+  "type": "ping",
+  "data": {}
+}
+```
+
+### pong: participant
+```json
+{
+  "type": "pong",
+  "data": {}
+}
+```
+
+### ping_result: admin
+```json
+{
+  "type": "ping_result",
+  "data": {
+    "nickname": "太郎",
+    "result": 10 | null // null means unreachable
   }
 }
 ```

@@ -49,7 +49,7 @@ class QuizParticipant {
             feedbackText: document.getElementById('feedback-text'),
             
             resultsSection: document.getElementById('results-section'),
-            finalScore: document.getElementById('final-score'),
+            // finalScore: document.getElementById('final-score'),
             rankings: document.getElementById('rankings'),
             
             emojiButtons: document.querySelectorAll('.emoji-btn')
@@ -140,17 +140,7 @@ class QuizParticipant {
                 this.showQuestion(message.data);
                 break;
                 
-            case 'countdown':
-                if (message.data && message.data.seconds_left === 0) {
-                    // 5秒カウントダウン終了時に回答をブロック
-                    this.disableChoices();
-                    this.blockAnswers();
-                }
-                break;
-                
             case 'question_end':
-                // カウントダウン終了で既にブロックされているはず
-                this.disableChoices();
                 this.blockAnswers();
                 break;
                 
@@ -159,13 +149,16 @@ class QuizParticipant {
                 
             case 'answer_reveal':
                 this.answerRevealed = true;
-                if (message.data && message.data.correct_index !== undefined) {
-                    this.showCorrectAnswer(message.data.correct_index);
+                if (message.data && message.data.correct !== undefined) {
+                    this.showCorrectAnswer(message.data.correct);
                 }
                 break;
                 
             case 'final_results':
                 this.showResults(message.data);
+                break;
+
+            case 'team_member_added':
                 break;
                 
             case 'state_changed':
@@ -307,14 +300,14 @@ class QuizParticipant {
         this.elements.totalQuestions.textContent = questionData.total_questions;
         this.elements.questionText.textContent = questionData.question.text;
         
-        if (questionData.question.Image) {
-            this.elements.questionImage.src = `/images/${questionData.question.Image}`;
+        if (questionData.question.image) {
+            this.elements.questionImage.src = `/images/${questionData.question.image}`;
             this.elements.questionImage.classList.remove('hidden');
         } else {
             this.elements.questionImage.classList.add('hidden');
         }
         
-        this.renderChoices(questionData.question.Choices);
+        this.renderChoices(questionData.question.choices);
     }
 
     renderChoices(choices) {
@@ -454,11 +447,11 @@ class QuizParticipant {
         
         if (resultsData.team_mode && resultsData.teams) {
             // チーム戦の場合はチーム結果のみ表示
-            this.elements.finalScore.textContent = `チーム戦結果`;
+            // this.elements.finalScore.textContent = `チーム戦結果`;
             this.renderTeamRankings(resultsData.teams);
         } else {
             // 個人戦の場合は従来通り
-            this.elements.finalScore.textContent = `あなたのスコア: ${this.user.score}点`;
+            // this.elements.finalScore.textContent = `あなたのスコア: ${this.user.score}点`;
             this.renderRankings(resultsData.results);
         }
     }
@@ -522,7 +515,7 @@ class QuizParticipant {
             teamHeader.className = 'team-header';
             teamHeader.innerHTML = `
                 <span class="rank">${index + 1}位</span>
-                <span class="team-name">${team.name}</span>
+                <span class="team-name">【${team.name}】</span>
                 <span class="team-score">${team.score}点</span>
             `;
             teamItem.appendChild(teamHeader);

@@ -11,6 +11,10 @@ body {
     overflow-x: hidden;
 }
 
+.hidden {
+    display: none;
+}
+
 .screen-container {
     min-height: 100vh;
     display: flex;
@@ -28,6 +32,12 @@ body {
 }
 
 .screen-header h1 {
+    font-size: 48px;
+    font-weight: 700;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+#header-final-result {
     font-size: 48px;
     font-weight: 700;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
@@ -129,6 +139,10 @@ body {
     font-size: 24px;
     font-weight: 600;
     margin-left: 40px;
+}
+
+.question-header.hidden {
+    display: none;
 }
 
 .question-number {
@@ -282,6 +296,7 @@ body {
 
 .first-place {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     font-size: 2.5rem;
@@ -293,6 +308,7 @@ body {
 
 .second-third-place {
     display: flex;
+    flex-direction: row;
     justify-content: space-around;
     width: 100%;
     max-width: 800px;
@@ -475,7 +491,7 @@ body {
     text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.8);
     z-index: 5000;
     text-align: center;
-    animation: countdownPulse 1s ease-in-out;
+    /* animation: countdownPulse 1s ease-in-out; */
 }
 
 .countdown-number-display.hidden {
@@ -508,13 +524,13 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(244, 67, 54, 0.95);
+    /* background: rgba(244, 67, 54, 0.95); */
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 15000;
     backdrop-filter: blur(10px);
-    animation: timeUpFlash 0.5s ease-in-out 3;
+    /* animation: timeUpFlash 0.5s ease-in-out 3; */
 }
 
 .time-up-display.hidden {

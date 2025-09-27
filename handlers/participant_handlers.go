@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"quiz100/models"
+	"quiz100/services"
 	"quiz100/websocket"
 
 	"github.com/gin-gonic/gin"
@@ -12,9 +13,11 @@ import (
 // ParticipantHandlers contains handlers for participant-related operations
 type ParticipantHandlers struct {
 	userRepo          *models.UserRepository
+	teamRepo          *models.TeamRepository
 	answerRepo        *models.AnswerRepository
 	emojiReactionRepo *models.EmojiReactionRepository
 	hubManager        *websocket.HubManager
+	stateService      *services.StateService
 	logger            models.QuizLogger
 	config            *models.Config
 }
@@ -38,17 +41,21 @@ type EmojiRequest struct {
 // NewParticipantHandlers creates a new ParticipantHandlers instance
 func NewParticipantHandlers(
 	userRepo *models.UserRepository,
+	teamRepo *models.TeamRepository,
 	answerRepo *models.AnswerRepository,
 	emojiReactionRepo *models.EmojiReactionRepository,
 	hubManager *websocket.HubManager,
+	stateService *services.StateService,
 	logger models.QuizLogger,
 	config *models.Config,
 ) *ParticipantHandlers {
 	return &ParticipantHandlers{
 		userRepo:          userRepo,
+		teamRepo:          teamRepo,
 		answerRepo:        answerRepo,
 		emojiReactionRepo: emojiReactionRepo,
 		hubManager:        hubManager,
+		stateService:      stateService,
 		logger:            logger,
 		config:            config,
 	}
@@ -83,6 +90,12 @@ func (ph *ParticipantHandlers) Join(c *gin.Context) {
 	if existingUser != nil {
 		user = existingUser
 		ph.logger.LogUserReconnect(user.Nickname, sessionID)
+
+		assignedTeam, err = ph.teamRepo.GetTeamByID(user.ID)
+		if err != nil {
+			ph.logger.LogError("error during acquiring team by id", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Team database error"})
+		}
 	} else {
 		// If this is a rejoin attempt but no existing user found, return error
 		if isRejoinAttempt {
@@ -110,11 +123,15 @@ func (ph *ParticipantHandlers) Join(c *gin.Context) {
 		ph.logger.LogError("updating user connection", err)
 	}
 
+	teamname := ""
+	if assignedTeam != nil {
+		teamname = assignedTeam.Name
+	}
 	// Broadcast user joined notification
 	userData := gin.H{
-		"user":          user,
-		"nickname":      user.Nickname,
-		"assigned_team": assignedTeam,
+		"user":     user,
+		"nickname": user.Nickname,
+		"teamname": teamname,
 	}
 
 	if err := ph.hubManager.BroadcastUserJoined(userData); err != nil {
@@ -148,6 +165,23 @@ func (ph *ParticipantHandlers) Answer(c *gin.Context) {
 		return
 	}
 
+	if req.QuestionNumber < 1 || req.QuestionNumber > len(ph.config.Questions) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid question number"})
+		return
+	}
+
+	// 現在回答受付中かどうか判断する
+	currentState := ph.stateService.GetCurrentState()
+	currentQuestion := ph.stateService.GetCurrentQuestion()
+	if currentState != models.StateQuestionActive && currentState != models.StateCountdownActive {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not currently accepting answers"})
+		return
+	}
+	if currentQuestion != req.QuestionNumber { // XXX: 数字あっているか？
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not currently acception answers number"})
+		return
+	}
+
 	existingAnswer, err := ph.answerRepo.GetAnswerByUserAndQuestion(user.ID, req.QuestionNumber)
 	if err != nil {
 		ph.logger.LogError("checking existing answer", err)
@@ -155,63 +189,42 @@ func (ph *ParticipantHandlers) Answer(c *gin.Context) {
 		return
 	}
 
-	if existingAnswer != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Already answered this question"})
-		return
-	}
-
-	if req.QuestionNumber < 1 || req.QuestionNumber > len(ph.config.Questions) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid question number"})
-		return
-	}
-
 	question := ph.config.Questions[req.QuestionNumber-1]
 	// Convert 1-based answer index to 0-based for comparison with 1-based correct answer
 	isCorrect := req.AnswerIndex == question.Correct
 
-	err = ph.answerRepo.CreateAnswer(user.ID, req.QuestionNumber, req.AnswerIndex, isCorrect)
-	if err != nil {
-		ph.logger.LogError("creating answer", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save answer"})
-		return
+	if existingAnswer == nil {
+		// 新規回答
+		err = ph.answerRepo.CreateAnswer(user.ID, req.QuestionNumber, req.AnswerIndex, isCorrect)
+		if err != nil {
+			ph.logger.LogError("creating answer", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save answer"})
+			return
+		}
+	} else {
+		// 回答済み、選択肢変更
+		err = ph.answerRepo.ChangeAnswer(user.ID, req.QuestionNumber, req.AnswerIndex, isCorrect)
+		if err != nil {
+			ph.logger.LogError("changing answer", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to change answer"})
+			return
+		}
 	}
 
 	ph.logger.LogAnswer(user.Nickname, req.QuestionNumber, req.AnswerIndex, isCorrect)
 
-	if isCorrect {
-		newScore := user.Score + 1
-		err = ph.userRepo.UpdateUserScore(user.ID, newScore)
-		if err != nil {
-			ph.logger.LogError("updating user score", err)
-		} else {
-			user.Score = newScore
-
-			// If team mode is enabled, update team scores
-			if ph.config.Event.TeamMode && user.TeamID != nil {
-				// Team score calculation would be handled by team service
-				// For now, we'll skip this as it requires team assignment service
-			}
-		}
-	}
-
 	// Broadcast answer received notification
 	answerData := gin.H{
-		"user_id":         user.ID,
 		"nickname":        user.Nickname,
 		"question_number": req.QuestionNumber,
-		"answer_index":    req.AnswerIndex,
-		"is_correct":      isCorrect,
-		"new_score":       user.Score,
+		"answer":          req.AnswerIndex,
 	}
 
 	if err := ph.hubManager.BroadcastAnswerReceived(answerData); err != nil {
 		ph.logger.LogError("broadcasting answer received", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"is_correct": isCorrect,
-		"new_score":  user.Score,
-	})
+	c.JSON(http.StatusOK, gin.H{})
 }
 
 // SendEmoji handles participant emoji reactions
@@ -238,7 +251,6 @@ func (ph *ParticipantHandlers) SendEmoji(c *gin.Context) {
 
 	// Broadcast emoji reaction
 	emojiData := gin.H{
-		"user_id":  user.ID,
 		"nickname": user.Nickname,
 		"emoji":    req.Emoji,
 	}
@@ -247,7 +259,11 @@ func (ph *ParticipantHandlers) SendEmoji(c *gin.Context) {
 		ph.logger.LogError("broadcasting emoji reaction", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "sent"})
+	if err = ph.emojiReactionRepo.CreateReaction(user.ID, req.Emoji); err != nil {
+		ph.logger.LogError("Emoji create failed", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
 }
 
 // ResetSession handles participant session reset

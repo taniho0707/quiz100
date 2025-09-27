@@ -27,11 +27,11 @@ type TeamSeparationConfig struct {
 }
 
 type Question struct {
-	Type    string   `toml:"type"`
-	Text    string   `toml:"text"`
-	Image   string   `toml:"image"`
-	Choices []string `toml:"choices"`
-	Correct int      `toml:"correct"`
+	Type    string   `toml:"type" json:"type"`
+	Text    string   `toml:"text" json:"text"`
+	Image   string   `toml:"image" json:"image"`
+	Choices []string `toml:"choices" json:"choices"`
+	Correct int      `toml:"correct" json:"correct"`
 }
 
 func LoadConfig(configPath string) (*Config, error) {

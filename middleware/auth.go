@@ -160,18 +160,18 @@ func isAdminMAC(clientMACs []string) bool {
 func AdminAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientIP := getClientIP(c)
-		log.Printf("Admin access attempt from IP: %s", clientIP)
+		// log.Printf("Admin access attempt from IP: %s", clientIP)
 
 		// Method 1: Token-based authentication (highest priority)
 		if hasValidAdminToken(c) {
-			log.Printf("Admin access granted for IP %s via TOKEN authentication", clientIP)
+			// log.Printf("Admin access granted for IP %s via TOKEN authentication", clientIP)
 			c.Next()
 			return
 		}
 
 		// Method 2: IP-based authentication
 		if isAdminIP(clientIP) {
-			log.Printf("Admin access granted for IP %s via IP authentication", clientIP)
+			// log.Printf("Admin access granted for IP %s via IP authentication", clientIP)
 			c.Next()
 			return
 		}

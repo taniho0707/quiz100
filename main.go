@@ -60,7 +60,7 @@ func main() {
 	stateService := services.NewStateService(stateManager, hubManager, hub, logger, config, userRepo, teamRepo)
 
 	// Initialize split handlers
-	participantHandlers := handlers.NewParticipantHandlers(userRepo, answerRepo, emojiReactionRepo, hubManager, *logger, config)
+	participantHandlers := handlers.NewParticipantHandlers(userRepo, teamRepo, answerRepo, emojiReactionRepo, hubManager, stateService, *logger, config)
 	adminHandlers := handlers.NewAdminHandlers(eventRepo, userRepo, answerRepo, teamRepo, teamAssignmentSvc, hubManager, stateService, *logger, config)
 	websocketHandlers := handlers.NewWebSocketHandlers(hub, hubManager, messageHandler, userRepo, teamRepo, eventRepo, *logger, config, stateService)
 
@@ -72,7 +72,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
-	r.Use(middleware.LogMACInfo())
+	// r.Use(middleware.LogMACInfo())
 
 	r.LoadHTMLGlob("static/html/*")
 	r.Static("/css", "./static/css")

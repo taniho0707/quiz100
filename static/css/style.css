@@ -17,6 +17,10 @@ body {
     -webkit-text-size-adjust: 100%;
 }
 
+.hidden {
+    display: none;
+}
+
 .container {
     max-width: 400px;
     width: 100%;
@@ -300,6 +304,10 @@ input[type="text"]:focus {
 .rank {
     font-weight: 700;
     color: #667eea;
+}
+
+.team-members {
+    padding-left: 2.2em;
 }
 
 .emoji-section {

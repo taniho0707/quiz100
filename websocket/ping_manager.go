@@ -24,6 +24,11 @@ type PingResult struct {
 	Status   string `json:"status"`
 }
 
+type PingResultWebsocket struct {
+	Nickname string `json:"nickname"`
+	Latency  int64  `json:"result"`
+}
+
 // PingUserRepository interface for getting user information
 type PingUserRepository interface {
 	GetUserByID(id int) (*PingUser, error)
@@ -96,8 +101,8 @@ func (pm *PingManager) sendPingToClient(client *Client) {
 	pingID := pm.generateUniqueID()
 	sentTime := time.Now()
 
-	// Create timeout timer (1 second)
-	timeout := time.AfterFunc(1*time.Second, func() {
+	// Create timeout timer (8 second)
+	timeout := time.AfterFunc(8*time.Second, func() {
 		pm.handlePingTimeout(client.UserID, pingID)
 	})
 
@@ -155,11 +160,8 @@ func (pm *PingManager) HandlePong(pingID string, userID int) {
 	// Clean up tracker
 	delete(pm.pingTrackers, pingID)
 
-	// Determine connection status
-	status := pm.determineConnectionStatus(latency)
-
 	// Send result to admin clients
-	pm.sendPingResultToAdmins(userID, latency, status)
+	pm.sendPingResultToAdmins(userID, latency)
 }
 
 // handlePingTimeout handles ping timeout (1 second)
@@ -171,34 +173,22 @@ func (pm *PingManager) handlePingTimeout(userID int, pingID string) {
 	delete(pm.pingTrackers, pingID)
 
 	// Send timeout result to admin clients
-	pm.sendPingResultToAdmins(userID, 0, "bad") // Timeout is treated as "bad"
-}
-
-// determineConnectionStatus determines connection status based on latency
-func (pm *PingManager) determineConnectionStatus(latency int64) string {
-	if latency < 300 {
-		return "good"
-	} else if latency < 1000 {
-		return "slow"
-	}
-	return "bad"
+	pm.sendPingResultToAdmins(userID, -1)
 }
 
 // sendPingResultToAdmins sends ping results to admin clients
-func (pm *PingManager) sendPingResultToAdmins(userID int, latency int64, status string) {
+func (pm *PingManager) sendPingResultToAdmins(userID int, latency int64) {
 	// Get user nickname from repository
-	nickname := fmt.Sprintf("User%d", userID) // Default fallback
+	nickname := ""
 	if pm.userRepo != nil {
 		if user, err := pm.userRepo.GetUserByID(userID); err == nil && user != nil {
 			nickname = user.Nickname
 		}
 	}
 
-	pingResult := PingResult{
-		UserID:   userID,
+	pingResult := PingResultWebsocket{
 		Nickname: nickname,
 		Latency:  latency,
-		Status:   status,
 	}
 
 	err := pm.hubManager.BroadcastToType(MessagePingResult, pingResult, ClientTypeAdmin)

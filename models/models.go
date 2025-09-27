@@ -241,6 +241,22 @@ func (r *AnswerRepository) CreateAnswer(userID, questionNumber, answerIndex int,
 	return err
 }
 
+func (r *AnswerRepository) DeleteAnswersByUserID(userID int) error {
+	query := `DELETE FROM answers WHERE user_id = ?`
+	_, err := r.db.Exec(query, userID)
+	return err
+}
+
+func (r *AnswerRepository) ChangeAnswer(userID, questionNumber, answerIndex int, isCorrect bool) error {
+	query := `
+		UPDATE answers
+		SET answer_index = ?, is_correct = ?, answer_time = CURRENT_TIMESTAMP
+		WHERE user_id = ? AND question_number = ?
+	`
+	_, err := r.db.Exec(query, answerIndex, isCorrect, userID, questionNumber)
+	return err
+}
+
 func (r *AnswerRepository) GetAnswerByUserAndQuestion(userID, questionNumber int) (*Answer, error) {
 	answer := &Answer{}
 	query := `SELECT id, user_id, question_number, answer_index, is_correct, answer_time FROM answers WHERE user_id = ? AND question_number = ?`
@@ -441,12 +457,6 @@ func (r *UserRepository) GetUsersWithoutTeam() ([]User, error) {
 func (r *UserRepository) DeleteUserBySessionID(sessionID string) error {
 	query := `DELETE FROM users WHERE session_id = ?`
 	_, err := r.db.Exec(query, sessionID)
-	return err
-}
-
-func (r *AnswerRepository) DeleteAnswersByUserID(userID int) error {
-	query := `DELETE FROM answers WHERE user_id = ?`
-	_, err := r.db.Exec(query, userID)
 	return err
 }
 

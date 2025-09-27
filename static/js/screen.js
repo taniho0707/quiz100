@@ -24,6 +24,7 @@ class QuizScreen {
             // questionStatus: document.getElementById('question-status'),
             // participantCount: document.getElementById('participant-count'),
             questionHeader: document.getElementById('question-header'),
+            headerFinalResult: document.getElementById('header-final-result'),
             
             waitingScreen: document.getElementById('waiting-screen'),
             questionScreen: document.getElementById('question-screen'),
@@ -90,6 +91,10 @@ class QuizScreen {
             case 'user_joined':
                 this.handleUserJoined(message.data);
                 break;
+
+            case 'user_left':
+                this.handleUserLeft(message.data);
+                break;
                 
             case 'event_started':
                 this.handleEventStarted(message.data);
@@ -154,6 +159,10 @@ class QuizScreen {
         this.loadStatus();
     }
 
+    handleUserLeft(data) {
+        this.loadStatus();
+    }
+
     handleEventStarted(data) {
         this.currentEvent = data.event;
         this.elements.eventTitle.textContent = data.title;
@@ -165,9 +174,9 @@ class QuizScreen {
         this.answersBlocked = false;
         this.hideCountdown();
         this.elements.timeUpDisplay.classList.add('hidden');
-        this.showQuestionScreen();
         this.displayQuestion(data);
         this.elements.questionHeader.style = "";
+        this.showQuestionScreen();
     }
 
     handleAnswerReceived(data) {
@@ -175,6 +184,9 @@ class QuizScreen {
     }
 
     handleFinalResults(data) {
+        this.elements.questionHeader.classList.add('hidden');
+        this.elements.headerFinalResult.classList.remove('hidden');
+
         this.showResultsScreen();
         
         if (data.team_mode && data.teams) {
@@ -184,12 +196,10 @@ class QuizScreen {
             // 個人戦の場合は従来通り
             this.displayFinalResults(data.results);
         }
-
-        this.elements.questionHeader.style = "display: hidden;";
     }
 
     handleTitleDisplay(data) {
-        this.showTitleScreen();
+        this.showTitleScreen(data);
     }
 
     handleTeamAssignment(data) {
@@ -293,40 +303,41 @@ class QuizScreen {
         const question = questionData.question;
         
         this.elements.currentQuestionNum.textContent = questionData.question_number;
-        this.elements.questionText.textContent = question.Text;
+        this.elements.questionText.textContent = question.text;
         
-        if (question.Image) {
-            this.elements.questionImage.src = `/images/${question.Image}`;
+        if (question.image) {
+            this.elements.questionImage.src = `/images/${question.image}`;
             this.elements.questionImage.hidden = false;
         } else {
             this.elements.questionImage.hidden = true;
         }
         
-        this.displayChoices(question.Choices, question.Correct);
+        this.displayChoices(question.choices);
         this.updateAnswerProgress();
     }
 
-    displayChoices(choices, correctIndex) {
+    displayChoices(choices) {
         this.elements.choicesDisplay.innerHTML = '';
         
         choices.forEach((choice, index) => {
             const choiceDiv = document.createElement('div');
             // Convert 0-based index to 1-based for comparison with 1-based correct answer
-            choiceDiv.className = `choice-display`;
+            choiceDiv.className = `choice-display choice-with-stats`;
             choiceDiv.innerHTML = `
                 <span class="choice-letter">${String.fromCharCode(65 + index)}</span>
-                ${choice}
+                <span class="choice-text">${choice}</span>
+                <span class="choice-count" style="visibility: hidden;">X人</span>
             `;
             this.elements.choicesDisplay.appendChild(choiceDiv);
         });
     }
 
-    showChoicesWithCounts(question, choicesCounts) {
-        if (!question || !choicesCounts) return;
+    showChoicesWithCounts(totalParticipants, choicesCounts) {
+        if (!totalParticipants || !choicesCounts) return;
         
         this.elements.choicesDisplay.innerHTML = '';
         
-        question.Choices.forEach((choice, index) => {
+        this.currentQuestion.question.choices.forEach((choice, index) => {
             const choiceDiv = document.createElement('div');
             const count = choicesCounts[index] || 0;
             choiceDiv.className = `choice-display choice-with-stats`;
@@ -399,22 +410,43 @@ class QuizScreen {
         if (teams.length >= 1) {
             document.getElementById('first-place-team').textContent = teams[0].name;
             document.getElementById('first-place-score').textContent = teams[0].score;
+            let members = document.getElementById('rankings-member-team1');
+            teams[0].members.forEach((value) => {
+                let elm = document.createElement('div');
+                elm.className = 'rankings-member-element1';
+                elm.textContent = value.nickname;
+                members.appendChild(elm);
+            });
         }
         if (teams.length >= 2) {
             document.getElementById('second-place-team').textContent = teams[1].name;
             document.getElementById('second-place-score').textContent = teams[1].score;
+            let members = document.getElementById('rankings-member-team2');
+            teams[1].members.forEach((value) => {
+                let elm = document.createElement('div');
+                elm.className = 'rankings-member-element2';
+                elm.textContent = value.nickname;
+                members.appendChild(elm);
+            });
         }
         if (teams.length >= 3) {
             document.getElementById('third-place-team').textContent = teams[2].name;
             document.getElementById('third-place-score').textContent = teams[2].score;
+            let members = document.getElementById('rankings-member-team2');
+            teams[3].members.forEach((value) => {
+                let elm = document.createElement('div');
+                elm.className = 'rankings-member-element2';
+                elm.textContent = value.nickname;
+                members.appendChild(elm);
+            });
         }
 
         // 一般順位（4位以下）をグリッドに表示
         const generalRankings = document.getElementById('general-rankings');
         generalRankings.innerHTML = '';
 
-        // 4位以下、最大50位まで（11×5グリッド = 55セルあるが、実際は47チーム分まで）
-        teams.slice(3, 50).forEach((team, index) => {
+        // 4位以下、最大58位まで（11×5グリッド = 55セルある）
+        teams.slice(3, 58).forEach((team, index) => {
             const rank = index + 4; // 4位からスタート
             const item = document.createElement('div');
             item.className = 'ranking-item';
@@ -424,6 +456,7 @@ class QuizScreen {
                 <div class="team-name">${team.name}</div>
                 <div class="team-score">${team.score}点</div>
             `;
+            // FIXME: チームメンバーの名前を記載する team.members[].nickname と score で参照可能
 
             generalRankings.appendChild(item);
         });
@@ -461,7 +494,7 @@ class QuizScreen {
     }
 
     showCountdown(secondsLeft) {
-        if (secondsLeft > 5 || secondsLeft < 1) {
+        if (secondsLeft > 10 || secondsLeft < 0) {
             this.hideCountdown();
             return;
         }
@@ -479,6 +512,11 @@ class QuizScreen {
                 this.hideCountdown();
                 this.showTimeUp();
             }, 1300);
+        } else {
+            // Show count
+            setTimeout(() => {
+                this.showCountdown(secondsLeft - 1)
+            }, 1000);
         }
     }
     
@@ -502,7 +540,7 @@ class QuizScreen {
         }, 5000);
     }
     
-    showTitleScreen() {
+    showTitleScreen(data) {
         this.hideAllScreens();
         // Create or show title display screen
         let titleScreen = document.getElementById('title-screen');
@@ -512,8 +550,8 @@ class QuizScreen {
             titleScreen.className = 'screen-section';
             titleScreen.innerHTML = `
                 <div class="title-display">
-                    <h1 class="main-title">${this.elements.eventTitle.textContent}</h1>
-                    <p class="welcome-message">🎉 クイズ大会へようこそ！</p>
+                    <h1 class="main-title">${data.title}</h1>
+                    <p class="welcome-message"></p>
                 </div>
             `;
             document.querySelector('.screen-content').appendChild(titleScreen);
@@ -543,7 +581,7 @@ class QuizScreen {
         const teamList = teamScreen.querySelector('#team-assignment-list');
         teamList.innerHTML = '';
         
-        teams.forEach((team, index) => {
+        teams.forEach((team, _index) => {
             const teamDiv = document.createElement('div');
             teamDiv.className = 'team-item';
             teamDiv.innerHTML = `
@@ -566,45 +604,8 @@ class QuizScreen {
         // この情報を問題画面に重ねて表示
         this.elements.questionScreen.classList.remove('hidden');
         
-        // // 問題情報を表示（まだ表示されていない場合）
-        // if (data.question) {
-        //     const questionData = {
-        //         question: data.question,
-        //         question_number: this.elements.currentQuestionNum.textContent || '1'
-        //     };
-        //     this.displayQuestion(questionData);
-        // }
-        
-        // // 回答状況表示を更新
-        // const progressFill = this.elements.progressFill;
-        // const answerCount = this.elements.answerCount;
-        
-        // const progress = data.total_participants > 0 ? 
-        //     (data.answered_count / data.total_participants) * 100 : 0;
-        
-        // progressFill.style.width = `${progress}%`;
-        // answerCount.textContent = `${data.answered_count} / ${data.total_participants} 回答済み`;
-        
         // 各選択肢に回答人数を表示
-        this.showChoicesWithCounts(data.question, data.choices_counts);
-        
-        // // 正解率も表示
-        // if (!document.getElementById('correct-rate-display')) {
-        //     const correctRateDiv = document.createElement('div');
-        //     correctRateDiv.id = 'correct-rate-display';
-        //     correctRateDiv.className = 'correct-rate-display';
-        //     correctRateDiv.innerHTML = `
-        //         <h3>📊 正解率: ${Math.round(data.correct_rate)}%</h3>
-        //         <p>正解者: ${data.correct_count}人 / 回答者: ${data.answered_count}人</p>
-        //     `;
-        //     this.elements.answerStats.appendChild(correctRateDiv);
-        // } else {
-        //     const correctRateDiv = document.getElementById('correct-rate-display');
-        //     correctRateDiv.innerHTML = `
-        //         <h3>📊 正解率: ${Math.round(data.correct_rate)}%</h3>
-        //         <p>正解者: ${data.correct_count}人 / 回答者: ${data.answered_count}人</p>
-        //     `;
-        // }
+        this.showChoicesWithCounts(data.total_participants, data.choices_counts);
     }
 
     showAnswerRevealScreen(data) {
@@ -614,17 +615,10 @@ class QuizScreen {
         const choices = this.elements.choicesDisplay.querySelectorAll('.choice-display');
         choices.forEach((choice, index) => {
             choice.classList.remove('correct', 'revealed');
-            // data.correct_indexは1ベースなので、0ベースに調整して比較
-            if ((index + 1) === data.correct_index) {
+            if (index === data.correct) {
                 choice.classList.add('correct', 'revealed');
             }
         });
-        
-        // 正解率表示を非表示
-        const correctRateDiv = document.getElementById('correct-rate-display');
-        if (correctRateDiv) {
-            correctRateDiv.remove();
-        }
     }
 
     showCelebrationScreen() {
@@ -699,7 +693,7 @@ class QuizScreen {
             `;
             
             // ランダムな方向に飛ばす
-            const angle = (side === 'left' ? 0.3 : 2.8) + (Math.random() - 0.5) * 0.8;
+            const angle = (side === 'left' ? 0.3 : -2.8) + (Math.random() - 0.5) * 0.8;
             const velocity = 100 + Math.random() * 200;
             const endX = startX + Math.cos(angle) * velocity;
             const endY = window.innerHeight + 100;
@@ -762,7 +756,8 @@ class QuizScreen {
                 
             case EVENT_STATES.ANSWER_STATS:
                 // this.hideAllScreens();
-                this.elements.answerStats.style.display = 'block';
+                // this.elements.answerStats.style.display = 'block';
+                // NOTE: NO IMPLEMENTED
                 break;
                 
             case EVENT_STATES.ANSWER_REVEAL:

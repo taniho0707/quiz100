@@ -13,7 +13,7 @@
     </div>
 
     <div id="main-container" class="container">
-        <div id="connection-status" class="status-indicator">
+        <div id="connection-status" class="status-indicator disconnected">
             <span id="connection-text">接続中...</span>
         </div>
 
@@ -34,7 +34,6 @@
         <div id="question-section" class="section hidden">
             <div class="question-header">
                 <span class="question-number">Q<span id="current-question-num">1</span></span>
-                <span class="question-total">/ <span id="total-questions">5</span></span>
             </div>
             <div class="question-content">
                 <h3 id="question-text">問題文がここに表示されます</h3>
@@ -43,7 +42,7 @@
             <div class="choices" id="choices-container">
                 <!-- 選択肢がここに動的に挿入されます -->
             </div>
-            <div class="score-display">
+            <div class="score-display hidden">
                 現在のスコア: <span id="current-score">0</span>点
             </div>
         </div>
@@ -56,7 +55,7 @@
 
         <div id="results-section" class="section hidden">
             <h2>🏆 最終結果</h2>
-            <div id="final-score" class="final-score"></div>
+            <!-- <div id="final-score" class="final-score"></div> -->
             <div id="rankings" class="rankings"></div>
         </div>
 

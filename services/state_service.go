@@ -5,6 +5,8 @@ import (
 	"quiz100/models"
 	"quiz100/websocket"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // StateService provides high-level state management operations
@@ -46,10 +48,10 @@ func NewStateService(stateManager *models.EventStateManager, hubManager *websock
 		teamRepo:     teamRepo,
 	}
 
-	// Start periodic sync with 15-second interval
-	if hub != nil {
-		hub.StartPeriodicSync(15 * time.Second)
-	}
+	// // Start periodic sync with 15-second interval
+	// if hub != nil {
+	// 	hub.StartPeriodicSync(15 * time.Second)
+	// }
 
 	return ss
 }
@@ -107,8 +109,8 @@ func (ss *StateService) TransitionTo(targetState models.EventState) *StateTransi
 	// Log successful transition
 	ss.logger.LogStateTransition(previousState, targetState)
 
-	// Broadcast state change
-	ss.broadcastStateChange(previousState, targetState)
+	// // Broadcast state change
+	// ss.broadcastStateChange(previousState, targetState)
 
 	// Update Hub event state for synchronization
 	ss.UpdateEventState()
@@ -177,13 +179,13 @@ func (ss *StateService) NextQuestion() *StateTransitionResult {
 
 	newState := ss.stateManager.GetCurrentState()
 
-	// Log transition
-	if newState != previousState {
-		ss.logger.LogStateTransition(previousState, newState)
+	// // Log transition
+	// if newState != previousState {
+	// 	ss.logger.LogStateTransition(previousState, newState)
 
-		// Broadcast state change if state actually changed
-		ss.broadcastStateChange(previousState, newState)
-	}
+	// 	// Broadcast state change if state actually changed
+	// 	ss.broadcastStateChange(previousState, newState)
+	// }
 
 	// Update Hub event state for synchronization (question number changed)
 	ss.UpdateEventState()
@@ -211,8 +213,8 @@ func (ss *StateService) StartCountdownWithAutoTransition() *StateTransitionResul
 }
 
 // GetStateInfo returns comprehensive state information
-func (ss *StateService) GetStateInfo() map[string]interface{} {
-	return map[string]interface{}{
+func (ss *StateService) GetStateInfo() map[string]any {
+	return map[string]any{
 		"current_state":     ss.stateManager.GetCurrentState(),
 		"current_question":  ss.stateManager.GetCurrentQuestion(),
 		"available_actions": ss.stateManager.GetAvailableActions(),
@@ -246,7 +248,7 @@ func (ss *StateService) ValidateStateTransition(from, to models.EventState) erro
 
 // broadcastStateChange broadcasts state change notification to all clients
 func (ss *StateService) broadcastStateChange(previousState, newState models.EventState) {
-	stateData := map[string]interface{}{
+	stateData := map[string]any{
 		"previous_state":   previousState,
 		"new_state":        newState,
 		"current_question": ss.stateManager.GetCurrentQuestion(),
@@ -261,31 +263,17 @@ func (ss *StateService) broadcastStateChange(previousState, newState models.Even
 
 // executeCountdownSequence executes the 5-second countdown and auto-transitions
 func (ss *StateService) executeCountdownSequence() {
-	// Send countdown messages (5 to 1 seconds)
-	for i := 5; i >= 1; i-- {
-		countdownData := map[string]interface{}{
-			"seconds_left": i,
-		}
-
-		if err := ss.hubManager.BroadcastCountdown(countdownData); err != nil {
-			ss.logger.LogError("broadcasting countdown", err)
-		}
-
-		time.Sleep(1 * time.Second)
+	countdownData := gin.H{
+		"seconds_left": 5,
+	}
+	if err := ss.hubManager.BroadcastCountdown(countdownData); err != nil {
+		ss.logger.LogError("broadcasting countdown", err)
 	}
 
-	// Send final countdown message with 0 to trigger answer blocking
-	finalCountdownData := map[string]interface{}{
-		"seconds_left": 0,
-	}
-	if err := ss.hubManager.BroadcastCountdown(finalCountdownData); err != nil {
-		ss.logger.LogError("broadcasting final countdown", err)
-	}
+	time.Sleep(5500 * time.Millisecond)
 
 	// Send question end message
-	endData := map[string]interface{}{
-		"message": "Time's up!",
-	}
+	endData := map[string]any{}
 
 	if err := ss.hubManager.BroadcastQuestionEnd(endData); err != nil {
 		ss.logger.LogError("broadcasting question end", err)
@@ -328,7 +316,7 @@ func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
 		currentState == models.StateAnswerReveal {
 		if ss.config != nil && currentQuestion > 0 && currentQuestion <= len(ss.config.Questions) {
 			question := ss.config.Questions[currentQuestion-1]
-			syncData.QuestionData = map[string]interface{}{
+			syncData.QuestionData = map[string]any{
 				"question_number": currentQuestion,
 				"question":        question,
 			}
@@ -341,9 +329,9 @@ func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
 			currentState == models.StateQuestionActive ||
 			currentState == models.StateResults) {
 		if teams, err := ss.teamRepo.GetAllTeamsWithMembers(); err == nil {
-			teamData := make([]interface{}, len(teams))
+			teamData := make([]any, len(teams))
 			for i, team := range teams {
-				teamData[i] = map[string]interface{}{
+				teamData[i] = map[string]any{
 					"id":      team.ID,
 					"name":    team.Name,
 					"score":   team.Score,
@@ -356,9 +344,9 @@ func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
 
 	// Add participant data for admin visibility
 	if users, err := ss.userRepo.GetAllUsers(); err == nil {
-		participantData := make([]interface{}, len(users))
+		participantData := make([]any, len(users))
 		for i, user := range users {
-			participantData[i] = map[string]interface{}{
+			participantData[i] = map[string]any{
 				"id":        user.ID,
 				"nickname":  user.Nickname,
 				"team_id":   user.TeamID,
@@ -448,9 +436,9 @@ func (ss *StateService) IsClientSynchronized(userID int) bool {
 }
 
 // GetSynchronizationReport generates a report of all client sync statuses
-func (ss *StateService) GetSynchronizationReport() map[string]interface{} {
+func (ss *StateService) GetSynchronizationReport() map[string]any {
 	if ss.hub == nil {
-		return map[string]interface{}{
+		return map[string]any{
 			"error": "Hub not available",
 		}
 	}
@@ -463,7 +451,7 @@ func (ss *StateService) GetSynchronizationReport() map[string]interface{} {
 	outdated := 0
 	uninitialized := 0
 
-	clientReports := make([]map[string]interface{}, 0)
+	clientReports := make([]map[string]any, 0)
 
 	for userID, clientState := range syncStatus {
 		isSync := clientState.IsInitialized &&
@@ -483,7 +471,7 @@ func (ss *StateService) GetSynchronizationReport() map[string]interface{} {
 			outdated++
 		}
 
-		clientReports = append(clientReports, map[string]interface{}{
+		clientReports = append(clientReports, map[string]any{
 			"user_id":           userID,
 			"status":            status,
 			"last_sync_time":    clientState.LastSyncTime,
@@ -493,7 +481,7 @@ func (ss *StateService) GetSynchronizationReport() map[string]interface{} {
 		})
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"current_state":    currentState,
 		"current_question": currentQuestion,
 		"total_clients":    len(syncStatus),

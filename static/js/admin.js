@@ -41,7 +41,7 @@ class QuizAdmin {
             celebrationBtn: document.getElementById('btn-celebration'),
             
             // イベント状況
-            eventStatus: document.getElementById('event-status'),
+            // eventStatus: document.getElementById('event-status'),
             currentQuestion: document.getElementById('current-question'),
             participantCount: document.getElementById('participant-count'),
             participantCountDisplay: document.getElementById('participant-count-display'),
@@ -140,6 +140,9 @@ class QuizAdmin {
             case 'user_joined':
                 this.handleUserJoined(message.data);
                 break;
+
+            case 'user_left':
+                this.handleUserLeft(message.data);
                 
             case 'answer_received':
                 this.handleAnswerReceived(message.data);
@@ -151,6 +154,15 @@ class QuizAdmin {
                 
             case 'question_start':
                 this.handleQuestionStart(message.data);
+                break;
+
+            case 'question_end':
+                break;
+
+            case 'answer_stats':
+                break;
+
+            case 'answer_reveal':
                 break;
                 
             case 'team_assignment':
@@ -165,6 +177,10 @@ class QuizAdmin {
                 this.handleTeamMemberAdded(message.data);
                 break;
 
+            case 'emoji':
+                this.handleEmojiReceived(message.data);
+                break;
+
             case 'ping_result':
                 this.handlePingResult(message.data);
                 break;
@@ -175,25 +191,26 @@ class QuizAdmin {
     }
 
     handleUserJoined(data) {
-        if (data.assigned_team) {
-            this.addLog(`${data.nickname} が参加しました (${data.assigned_team.name}に配置)`, 'info');
+        if (data.teamname) {
+            this.addLog(`${data.nickname} が参加しました (${data.teamname}に配置)`, 'info');
         } else {
             this.addLog(`${data.nickname} が参加しました`, 'info');
         }
         this.loadStatus();
     }
 
+    handleUserLeft(data) {
+        this.addLog(`${data.nickname} が退出しました`, 'info');
+        this.loadStatus();
+    }
+
     handleAnswerReceived(data) {
         this.answers.set(data.user_id, {
             nickname: data.nickname,
-            answer_index: data.answer_index,
-            is_correct: data.is_correct,
-            new_score: data.new_score
+            answer: data.answer
         });
         
-        this.addLog(`${data.nickname} が回答しました (${data.is_correct ? '正解' : '不正解'})`, 
-                   data.is_correct ? 'success' : 'info');
-        
+        this.addLog(`${data.nickname} が回答しました`, 'info');
         this.updateAnswersDisplay();
         this.loadStatus();
     }
@@ -226,6 +243,10 @@ class QuizAdmin {
             this.displayFinalTeamResults(data.teams);
         }
         this.displayFinalResults(data.results);
+    }
+
+    handleEmojiReceived(data) {
+        return;
     }
 
     async startEvent() {
@@ -521,7 +542,7 @@ class QuizAdmin {
 
     updateEventStatus() {
         if (!this.currentEvent) {
-            this.elements.eventStatus.textContent = '待機中';
+            // this.elements.eventStatus.textContent = '待機中';
             this.elements.currentQuestion.textContent = '-';
             this.elements.startEventBtn.disabled = false;
             this.elements.nextQuestionBtn.disabled = true;
@@ -529,9 +550,9 @@ class QuizAdmin {
             return;
         }
 
-        this.elements.eventStatus.textContent = 
-            this.currentEvent.status === 'started' ? '進行中' : 
-            this.currentEvent.status === 'finished' ? '終了' : '待機中';
+        // this.elements.eventStatus.textContent = 
+        //     this.currentEvent.status === 'started' ? '進行中' : 
+        //     this.currentEvent.status === 'finished' ? '終了' : '待機中';
         
         this.elements.currentQuestion.textContent = this.currentEvent.current_question || 0;
         
@@ -564,65 +585,74 @@ class QuizAdmin {
             item.className = 'participant-item';
 
             // Get ping data for this user
-            const pingData = this.pingResults.get(user.id);
+            const pingData = this.pingResults.get(user.nickname);
             let pingStatusHtml = '';
 
             if (pingData) {
-                const age = Date.now() - pingData.timestamp;
-                const isStale = age > 15000; // Data older than 15 seconds
+                const isStale = pingData.result > 5000; // Data older than 5 seconds
 
                 if (isStale) {
                     pingStatusHtml = '<span class="ping-status stale">--ms</span>';
                 } else {
-                    const latencyText = pingData.latency === 0 ? 'timeout' : `${pingData.latency}ms`;
-                    pingStatusHtml = `<span class="ping-status ${pingData.status}">${latencyText}</span>`;
+                    const latencyText = pingData.result < 0 ? 'timeout' : `${pingData.result}ms`;
+                    let pingDataStatus = '';
+                    if (pingData.result < 0) {
+                        pingDataStatus = 'unknown';
+                    } else if (pingData.result < 300) {
+                        pingDataStatus = 'good';
+                    } else if (pingData.result < 1000) {
+                        pingDataStatus = 'slow';
+                    } else {
+                        pingDataStatus = 'bad';
+                    }
+                    pingStatusHtml = `<span class="ping-status ${pingDataStatus}">${latencyText}</span>`;
                 }
             } else {
                 pingStatusHtml = '<span class="ping-status unknown">--ms</span>';
             }
 
-            // Get sync status for this user
-            const syncData = this.syncStatus.get(user.id);
-            let syncStatusHtml = '<span class="sync-status unknown">🔄 未知</span>';
+            // // Get sync status for this user
+            // const syncData = this.syncStatus.get(user.nickname);
+            // let syncStatusHtml = '<span class="sync-status unknown">🔄 未知</span>';
 
-            if (syncData) {
-                const syncAge = Date.now() - new Date(syncData.last_sync_time).getTime();
-                const isOutdated = syncAge > 60000; // More than 1 minute old
+            // if (syncData) {
+            //     const syncAge = Date.now() - new Date(syncData.last_sync_time).getTime();
+            //     const isOutdated = syncAge > 60000; // More than 1 minute old
 
-                switch (syncData.status) {
-                    case 'synchronized':
-                        syncStatusHtml = `<span class="sync-status synchronized">✓ 同期済</span>`;
-                        break;
-                    case 'outdated':
-                        syncStatusHtml = `<span class="sync-status outdated">⚠ 古い</span>`;
-                        break;
-                    case 'uninitialized':
-                        syncStatusHtml = `<span class="sync-status uninitialized">🔄 未初期化</span>`;
-                        break;
-                    default:
-                        syncStatusHtml = `<span class="sync-status unknown">❓ 不明</span>`;
-                }
+            //     switch (syncData.status) {
+            //         case 'synchronized':
+            //             syncStatusHtml = `<span class="sync-status synchronized">✓ 同期済</span>`;
+            //             break;
+            //         case 'outdated':
+            //             syncStatusHtml = `<span class="sync-status outdated">⚠ 古い</span>`;
+            //             break;
+            //         case 'uninitialized':
+            //             syncStatusHtml = `<span class="sync-status uninitialized">🔄 未初期化</span>`;
+            //             break;
+            //         default:
+            //             syncStatusHtml = `<span class="sync-status unknown">❓ 不明</span>`;
+            //     }
 
-                if (isOutdated && syncData.status === 'synchronized') {
-                    syncStatusHtml = `<span class="sync-status outdated">⏰ 期限切れ</span>`;
-                }
-            }
+            //     if (isOutdated && syncData.status === 'synchronized') {
+            //         syncStatusHtml = `<span class="sync-status outdated">⏰ 期限切れ</span>`;
+            //     }
+            // }
 
             item.innerHTML = `
                 <div class="participant-info">
                     <div class="connection-status ${user.connected ? '' : 'disconnected'}"></div>
                     <span class="participant-name">${user.nickname}</span>
                     ${pingStatusHtml}
-                    ${syncStatusHtml}
                 </div>
                 <span class="participant-score">${user.score}点</span>
                 <div class="participant-control">
                     <button class="smallbtn participant-button-delete">削除</div>
                     <button class="smallbtn participant-button-resetscore">成績消去</div>
                     <button class="smallbtn participant-button-changename">名前変更</div>
-                    <button class="smallbtn participant-button-sync" data-user-id="${user.id}">🔄 同期</div>
                 </div>
             `;
+            //     <!-- ${syncStatusHtml} -->
+            // <!-- <button class="smallbtn participant-button-sync" data-user-id="${user.id}">🔄 同期</div> -->
 
             this.elements.participantsList.appendChild(item);
         });
@@ -685,17 +715,17 @@ class QuizAdmin {
         const question = this.currentQuestion.question;
         let html = `
             <h4>問題 ${this.currentQuestion.question_number}</h4>
-            <p><strong>${question.Text}</strong></p>
+            <p><strong>${question.text}</strong></p>
         `;
         
-        if (question.Image) {
-            html += `<img src="/images/${question.Image}" alt="問題画像" class="question-image">`;
+        if (question.image) {
+            html += `<img src="/images/${question.image}" alt="問題画像" class="question-image">`;
         }
         
         html += '<div class="choices-list">';
-        question.Choices.forEach((choice, index) => {
+        question.choices.forEach((choice, index) => {
             // Convert 0-based index to 1-based for comparison with 1-based correct answer
-            const isCorrect = (index + 1) === question.Correct;
+            const isCorrect = (index + 1) === question.correct;
             html += `
                 <div class="choice-item ${isCorrect ? 'correct' : ''}">
                     ${String.fromCharCode(65 + index)}. ${choice}
@@ -842,28 +872,22 @@ class QuizAdmin {
     }
     
     handleTeamMemberAdded(data) {
-        // Update the team in our local storage
-        if (data.team) {
-            this.teams.set(data.team.id, data.team);
-            this.updateTeamsDisplay();
-            this.addLog(`${data.user.nickname} が ${data.team.name} に自動配置されました`, 'success');
-        }
+        this.teams.set(data.team_id, data.team); // FIXME: データ構造直す
+        this.updateTeamsDisplay();
+        this.addLog(`${data.nickname} が ${data.team_id} に自動配置されました`, 'success');
     }
 
     handlePingResult(data) {
         // Store ping result for the user
-        this.pingResults.set(data.user_id, {
-            nickname: data.nickname,
-            latency: data.latency,
-            status: data.status,
-            timestamp: Date.now()
+        this.pingResults.set(data.nickname, {
+            result: data.result
         });
 
         // Update the participants display to show ping status
         this.updateParticipantsDisplay();
 
         // Optional: Add to log for debugging
-        if (data.status === 'bad' || data.latency > 1000) {
+        if (data.status === 'bad' || data.result > 5000) {
             this.addLog(`${data.nickname} の通信が不安定です (${data.latency === 0 ? 'タイムアウト' : data.latency + 'ms'})`, 'warning');
         }
     }
@@ -895,8 +919,8 @@ class QuizAdmin {
         // 一番上（最新ログ）まで強制スクロール
         this.elements.logContainer.scrollTop = 0;
         
-        // ログが多すぎる場合は古いものを削除（最大100件）
-        const maxLogs = 100;
+        // ログが多すぎる場合は古いものを削除（最大1000件）
+        const maxLogs = 1000;
         const logEntries = this.elements.logList.children;
         while (logEntries.length > maxLogs) {
             this.elements.logList.removeChild(logEntries[0]);
@@ -940,17 +964,17 @@ class QuizAdmin {
 
     updateCurrentStateDisplay(currentState) {
         // Update the event status display using shared constants
-        this.elements.eventStatus.textContent = QuizUtils.StateUtils.getStateLabel(currentState);
+        // this.elements.eventStatus.textContent = QuizUtils.StateUtils.getStateLabel(currentState);
     }
 
     // Sync Status Management
 
     startSyncStatusMonitoring() {
-        // Load sync status every 10 seconds
-        this.loadSyncStatus();
-        this.syncStatusInterval = setInterval(() => {
-            this.loadSyncStatus();
-        }, 10000);
+        // // Load sync status every 10 seconds
+        // this.loadSyncStatus();
+        // this.syncStatusInterval = setInterval(() => {
+        //     this.loadSyncStatus();
+        // }, 10000);
     }
 
     async loadSyncStatus() {

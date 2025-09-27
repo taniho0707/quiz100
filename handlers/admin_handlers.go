@@ -299,14 +299,25 @@ func (ah *AdminHandlers) handleNextQuestion(c *gin.Context) {
 
 	ah.logger.LogQuestionStart(questionNum, question.Text)
 
-	questionData := gin.H{
+	// websocket 本文
+	questionAndAnswerData := gin.H{
 		"question_number": questionNum,
 		"question":        question,
 		"total_questions": len(ah.config.Questions),
-		"state":           ah.stateService.GetCurrentState(),
+		"correct":         question.Correct,
 	}
 
-	if err := ah.hubManager.BroadcastQuestionStart(questionData); err != nil {
+	questionData := gin.H{
+		"question_number": questionNum,
+		"question": gin.H{
+			"type":    question.Type,
+			"text":    question.Text,
+			"image":   question.Image,
+			"choices": question.Choices,
+		},
+	}
+
+	if err := ah.hubManager.BroadcastQuestionStart(questionData, questionAndAnswerData); err != nil {
 		ah.logger.LogError("broadcasting question start", err)
 	}
 
@@ -372,12 +383,7 @@ func (ah *AdminHandlers) handleShowAnswerStats(c *gin.Context) {
 
 	statsData := gin.H{
 		"total_participants": len(users),
-		"answered_count":     answeredCount,
-		"correct_count":      correctCount,
-		"correct_rate":       float64(correctCount) / float64(max(answeredCount, 1)) * 100,
-		"question":           ah.currentQuestion,
 		"choices_counts":     choicesCounts,
-		"state":              ah.stateService.GetCurrentState(),
 	}
 
 	if err := ah.hubManager.BroadcastAnswerStats(statsData); err != nil {
@@ -403,9 +409,7 @@ func (ah *AdminHandlers) handleRevealAnswer(c *gin.Context) {
 	}
 
 	revealData := gin.H{
-		"question":      ah.currentQuestion,
-		"correct_index": ah.currentQuestion.Correct,
-		"state":         ah.stateService.GetCurrentState(),
+		"correct": ah.currentQuestion.Correct,
 	}
 
 	if err := ah.hubManager.BroadcastAnswerReveal(revealData); err != nil {
@@ -444,7 +448,6 @@ func (ah *AdminHandlers) handleShowResults(c *gin.Context) {
 		"results":   users,
 		"teams":     teams,
 		"team_mode": ah.config.Event.TeamMode,
-		"state":     ah.stateService.GetCurrentState(),
 	}
 
 	if err := ah.hubManager.BroadcastFinalResults(resultsData); err != nil {
@@ -491,13 +494,6 @@ func (ah *AdminHandlers) getTotalUsersInTeams(teams []models.Team) int {
 		total += len(team.Members)
 	}
 	return total
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // SetCurrentEvent sets the current event (for handlers that need it)

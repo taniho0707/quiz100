@@ -115,7 +115,7 @@
 }
 ```
 
-### answer_reveal: admin/screen
+### answer_reveal: admin/screen/participant
 ```json
 {
   "type": "answer_reveal",
@@ -148,7 +148,7 @@
 {
   "type": "user_joined",
   "data": {
-    "team_id": 1 | null,
+    "teamname": "チーム1",
     "nickname": "太郎",
     "score": 0,
   }
@@ -189,6 +189,7 @@
 ```
 
 ### team_member_added: admin/participant
+/// TODO
 ```json
 {
   "type": "team_member_added",
@@ -200,16 +201,19 @@
 ```
 
 ### state_changed (for debug)
+/// TODO
 ```json
 
 ```
 
 ### initial_sync: admin/screen/participant
+/// TODO
 ```json
 
 ```
 
 ### state_sync: admin/screen/participant
+/// TODO
 ```json
 
 ```

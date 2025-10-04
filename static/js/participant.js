@@ -39,7 +39,7 @@ class QuizParticipant {
             
             questionSection: document.getElementById('question-section'),
             currentQuestionNum: document.getElementById('current-question-num'),
-            totalQuestions: document.getElementById('total-questions'),
+            // totalQuestions: document.getElementById('total-questions'),
             questionText: document.getElementById('question-text'),
             questionImage: document.getElementById('question-image'),
             choicesContainer: document.getElementById('choices-container'),
@@ -297,7 +297,7 @@ class QuizParticipant {
         this.elements.questionSection.classList.remove('hidden');
         
         this.elements.currentQuestionNum.textContent = questionData.question_number;
-        this.elements.totalQuestions.textContent = questionData.total_questions;
+        // this.elements.totalQuestions.textContent = questionData.total_questions;
         this.elements.questionText.textContent = questionData.question.text;
         
         if (questionData.question.image) {

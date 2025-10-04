@@ -13,24 +13,25 @@
             <div class="question-header hidden" id="question-header">
                 <span class="question-number">Q<span id="current-question-num">1</span></span>
             </div>
-            <div id="header-final-result hidden">🏆 最終結果</div>
+            <div id="header-waiting" class="">🎉 参加受付中</div>
+            <div id="header-final-result" class="hidden">🏆 最終結果</div>
         </header>
 
         <main id="main-container" class="screen-content">
             <div id="waiting-screen" class="screen-section">
-                <div class="waiting-message">
-                    <h2>🎉 参加受付中</h2>
-                    <p>スマートフォンでQRコードを読み取るか、URLにアクセスしてください</p>
-                    <div class="qr-placeholder">
-                        <p><img id="qrcode-image" src="" /></p>
-                        <p>URL: <span id="join-url">http://localhost:8080</span></p>
+                <div class="waiting-content">
+                    <div class="waiting-message">
+                        <div class="qr-placeholder">
+                            <p><img id="qrcode-image" src="" /></p>
+                            <p>URL: <span id="join-url">http://localhost:8080</span></p>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="participants-preview">
-                    <h3>👥 参加者一覧</h3>
-                    <div id="participants-grid" class="participants-grid">
-                        <!-- 参加者がここに表示されます -->
+
+                    <div class="participants-preview">
+                        <h3>👥 参加者一覧</h3>
+                        <div id="participants-grid" class="participants-grid">
+                            <!-- 参加者がここに表示されます -->
+                        </div>
                     </div>
                 </div>
             </div>

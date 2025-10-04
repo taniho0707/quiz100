@@ -24,6 +24,7 @@ class QuizScreen {
             // questionStatus: document.getElementById('question-status'),
             // participantCount: document.getElementById('participant-count'),
             questionHeader: document.getElementById('question-header'),
+            headerWaiting: document.getElementById('header-waiting'),
             headerFinalResult: document.getElementById('header-final-result'),
             
             waitingScreen: document.getElementById('waiting-screen'),
@@ -256,20 +257,20 @@ class QuizScreen {
     updateParticipants(users) {
         this.participants.clear();
         users.forEach(user => this.participants.set(user.id, user));
-        
-        // this.elements.participantCount.textContent = `参加者: ${users.length}人`;
-        
+
         this.elements.participantsGrid.innerHTML = '';
         users.forEach(user => {
             const card = document.createElement('div');
             card.className = 'participant-card';
             card.innerHTML = `
                 <div class="participant-name">${user.nickname}</div>
-                <div class="participant-score">${user.score}点</div>
             `;
             this.elements.participantsGrid.appendChild(card);
         });
-        
+
+        // 新規参加者が追加されたときに最上部にスクロール
+        this.elements.participantsGrid.scrollTop = 0;
+
         this.updateAnswerProgress();
     }
 
@@ -403,63 +404,75 @@ class QuizScreen {
     }
 
     displayTeamResults(teams) {
-        // チームを得点順にソート
+        // チームを得点順にソート（最下位から表示するため逆順）
         teams.sort((a, b) => b.score - a.score);
 
-        // 表彰台（1-3位）を表示
-        if (teams.length >= 1) {
-            document.getElementById('first-place-team').textContent = teams[0].name;
-            document.getElementById('first-place-score').textContent = teams[0].score;
-            let members = document.getElementById('rankings-member-team1');
-            teams[0].members.forEach((value) => {
-                let elm = document.createElement('div');
-                elm.className = 'rankings-member-element1';
-                elm.textContent = value.nickname;
-                members.appendChild(elm);
-            });
-        }
-        if (teams.length >= 2) {
-            document.getElementById('second-place-team').textContent = teams[1].name;
-            document.getElementById('second-place-score').textContent = teams[1].score;
-            let members = document.getElementById('rankings-member-team2');
-            teams[1].members.forEach((value) => {
-                let elm = document.createElement('div');
-                elm.className = 'rankings-member-element2';
-                elm.textContent = value.nickname;
-                members.appendChild(elm);
-            });
-        }
-        if (teams.length >= 3) {
-            document.getElementById('third-place-team').textContent = teams[2].name;
-            document.getElementById('third-place-score').textContent = teams[2].score;
-            let members = document.getElementById('rankings-member-team2');
-            teams[3].members.forEach((value) => {
-                let elm = document.createElement('div');
-                elm.className = 'rankings-member-element2';
-                elm.textContent = value.nickname;
-                members.appendChild(elm);
-            });
+        // 結果表示エリアをクリア
+        this.elements.rankingsDisplay.innerHTML = `
+            <div id="team-results-container" class="team-results-container">
+                <!-- チーム結果がここに順次表示されます -->
+            </div>
+        `;
+
+        const container = document.getElementById('team-results-container');
+
+        // 最下位から順次表示するため配列を逆順にする
+        const reversedTeams = [...teams].reverse();
+
+        // 各チームを順次表示
+        this.displayTeamsSequentially(reversedTeams, container, 0);
+    }
+
+    displayTeamsSequentially(teams, container, index) {
+        if (index >= teams.length) {
+            // 全チーム表示完了後、紙吹雪を開始
+            setTimeout(() => {
+                this.startFullScreenConfetti();
+            }, 1000);
+            return;
         }
 
-        // 一般順位（4位以下）をグリッドに表示
-        const generalRankings = document.getElementById('general-rankings');
-        generalRankings.innerHTML = '';
+        const team = teams[index];
+        const rank = teams.length - index; // 最下位から表示するので順位を計算
 
-        // 4位以下、最大58位まで（11×5グリッド = 55セルある）
-        teams.slice(3, 58).forEach((team, index) => {
-            const rank = index + 4; // 4位からスタート
-            const item = document.createElement('div');
-            item.className = 'ranking-item';
+        // チーム要素を作成
+        const teamElement = document.createElement('div');
+        teamElement.className = `team-result-item rank-${rank}`;
 
-            item.innerHTML = `
-                <div class="rank">${rank}位</div>
+        // 順位に応じたクラスを追加
+        if (rank === 1) {
+            teamElement.classList.add('first-place');
+        } else if (rank === 2 || rank === 3) {
+            teamElement.classList.add('podium-place');
+        } else {
+            teamElement.classList.add('general-place');
+        }
+
+        teamElement.innerHTML = `
+            <div class="team-rank">${rank}位</div>
+            <div class="team-info">
                 <div class="team-name">${team.name}</div>
                 <div class="team-score">${team.score}点</div>
-            `;
-            // FIXME: チームメンバーの名前を記載する team.members[].nickname と score で参照可能
+                <div class="team-members">
+                    ${team.members.map(member => `<span class="member-name">${member.nickname}</span>`).join('')}
+                </div>
+            </div>
+        `;
 
-            generalRankings.appendChild(item);
-        });
+        // 最下位から順に上に挿入（最終的に1位が上、最下位が下になる）
+        container.insertBefore(teamElement, container.firstChild);
+
+        // スライドインアニメーションを適用
+        setTimeout(() => {
+            teamElement.classList.add('slide-in');
+        }, 50);
+
+        // 次のチームの表示間隔を設定
+        const delay = rank <= 3 ? 3000 : 1000; // 3位以上は3秒、4位以下は1秒
+
+        setTimeout(() => {
+            this.displayTeamsSequentially(teams, container, index + 1);
+        }, delay);
     }
 
     showEmojiReaction(emoji) {
@@ -557,6 +570,7 @@ class QuizScreen {
             document.querySelector('.screen-content').appendChild(titleScreen);
         }
         titleScreen.classList.remove('hidden');
+        this.elements.headerWaiting.classList.add('header-waiting');
     }
 
     showTeamAssignmentScreen(teams) {
@@ -625,83 +639,165 @@ class QuizScreen {
         this.hideAllScreens();
         // 結果画面を表示してクラッカーアニメーション開始
         this.elements.resultsScreen.classList.remove('hidden');
-        this.startConfettiAnimation();
+        // this.startConfettiAnimation();
     }
 
-    startConfettiAnimation() {
-        // 左右のクラッカーを作成
-        const leftCracker = this.createCracker('left');
-        const rightCracker = this.createCracker('right');
+    // startConfettiAnimation() {
+    //     // 左右のクラッカーを作成
+    //     const leftCracker = this.createCracker('left');
+    //     const rightCracker = this.createCracker('right');
         
-        document.body.appendChild(leftCracker);
-        document.body.appendChild(rightCracker);
+    //     document.body.appendChild(leftCracker);
+    //     document.body.appendChild(rightCracker);
         
-        // 紙吹雪アニメーション開始
+    //     // 紙吹雪アニメーション開始
+    //     setTimeout(() => {
+    //         this.createConfetti('left');
+    //         this.createConfetti('right');
+    //     }, 500);
+        
+    //     // 5秒後にクリーンアップ
+    //     setTimeout(() => {
+    //         leftCracker.remove();
+    //         rightCracker.remove();
+    //         this.clearConfetti();
+    //     }, 5000);
+    // }
+
+    // // FIXME: 形を整える
+    // createCracker(side) {
+    //     const cracker = document.createElement('div');
+    //     cracker.className = `cracker cracker-${side}`;
+    //     cracker.style.cssText = `
+    //         position: fixed;
+    //         ${side}: 20px;
+    //         top: 50%;
+    //         width: 60px;
+    //         height: 120px;
+    //         background: linear-gradient(45deg, #FFD700, #FFA500);
+    //         border-radius: 10px 10px 30px 30px;
+    //         z-index: 1000;
+    //         transform: translateY(-50%);
+    //         animation: crackerShake 0.5s ease-in-out;
+    //     `;
+    //     return cracker;
+    // }
+
+    // // FIXME: ちゃんとした方向に飛ばす
+    // createConfetti(side) {
+    //     const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#FFD93D'];
+    //     const startX = side === 'left' ? 50 : window.innerWidth - 50;
+
+    //     for (let i = 0; i < 50; i++) {
+    //         const confetti = document.createElement('div');
+    //         confetti.className = 'confetti';
+    //         confetti.style.cssText = `
+    //             position: fixed;
+    //             left: ${startX}px;
+    //             top: 50%;
+    //             width: 10px;
+    //             height: 10px;
+    //             background: ${colors[Math.floor(Math.random() * colors.length)]};
+    //             border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
+    //             z-index: 999;
+    //             pointer-events: none;
+    //             animation: confettiFall ${2 + Math.random() * 3}s linear forwards;
+    //             animation-delay: ${Math.random() * 2}s;
+    //             transform: rotate(${Math.random() * 360}deg);
+    //         `;
+
+    //         // ランダムな方向に飛ばす
+    //         const angle = (side === 'left' ? 0.3 : -2.8) + (Math.random() - 0.5) * 0.8;
+    //         const velocity = 100 + Math.random() * 200;
+    //         const endX = startX + Math.cos(angle) * velocity;
+    //         const endY = window.innerHeight + 100;
+
+    //         confetti.style.setProperty('--end-x', `${endX}px`);
+    //         confetti.style.setProperty('--end-y', `${endY}px`);
+
+    //         document.body.appendChild(confetti);
+    //     }
+    // }
+
+    startFullScreenConfetti() {
+        // 画面全体から紙吹雪を降らせるコンテナを作成
+        const confettiContainer = document.createElement('div');
+        confettiContainer.className = 'full-screen-confetti';
+        confettiContainer.id = 'full-screen-confetti-container';
+        document.body.appendChild(confettiContainer);
+
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#FFD93D', '#FFB6C1', '#87CEEB', '#DDA0DD', '#F0E68C'];
+        const shapes = ['circle', 'square', 'triangle'];
+
+        // 10秒間継続的に紙吹雪を生成
+        const confettiInterval = setInterval(() => {
+            this.createFullScreenConfettiPieces(confettiContainer, colors, shapes);
+        }, 200); // 200ms間隔で新しい紙吹雪を生成
+
+        // 10秒後に停止
         setTimeout(() => {
-            this.createConfetti('left');
-            this.createConfetti('right');
-        }, 500);
-        
-        // 5秒後にクリーンアップ
-        setTimeout(() => {
-            leftCracker.remove();
-            rightCracker.remove();
-            this.clearConfetti();
-        }, 5000);
+            clearInterval(confettiInterval);
+
+            // さらに5秒後にコンテナを削除（落下アニメーション完了待ち）
+            setTimeout(() => {
+                if (confettiContainer.parentNode) {
+                    confettiContainer.remove();
+                }
+            }, 5000);
+        }, 10000);
     }
 
-    // FIXME: 形を整える
-    createCracker(side) {
-        const cracker = document.createElement('div');
-        cracker.className = `cracker cracker-${side}`;
-        cracker.style.cssText = `
-            position: fixed;
-            ${side}: 20px;
-            top: 50%;
-            width: 60px;
-            height: 120px;
-            background: linear-gradient(45deg, #FFD700, #FFA500);
-            border-radius: 10px 10px 30px 30px;
-            z-index: 1000;
-            transform: translateY(-50%);
-            animation: crackerShake 0.5s ease-in-out;
-        `;
-        return cracker;
-    }
+    createFullScreenConfettiPieces(container, colors, shapes) {
+        const piecesPerBatch = 15; // 一度に生成する紙吹雪の数
 
-    // FIXME: ちゃんとした方向に飛ばす
-    createConfetti(side) {
-        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#FFD93D'];
-        const startX = side === 'left' ? 50 : window.innerWidth - 50;
-        
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < piecesPerBatch; i++) {
             const confetti = document.createElement('div');
-            confetti.className = 'confetti';
-            confetti.style.cssText = `
-                position: fixed;
-                left: ${startX}px;
-                top: 50%;
-                width: 10px;
-                height: 10px;
-                background: ${colors[Math.floor(Math.random() * colors.length)]};
-                border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
-                z-index: 999;
-                pointer-events: none;
-                animation: confettiFall ${2 + Math.random() * 3}s linear forwards;
-                animation-delay: ${Math.random() * 2}s;
-                transform: rotate(${Math.random() * 360}deg);
-            `;
-            
-            // ランダムな方向に飛ばす
-            const angle = (side === 'left' ? 0.3 : -2.8) + (Math.random() - 0.5) * 0.8;
-            const velocity = 100 + Math.random() * 200;
-            const endX = startX + Math.cos(angle) * velocity;
-            const endY = window.innerHeight + 100;
-            
-            confetti.style.setProperty('--end-x', `${endX}px`);
-            confetti.style.setProperty('--end-y', `${endY}px`);
-            
-            document.body.appendChild(confetti);
+            const shape = shapes[Math.floor(Math.random() * shapes.length)];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+
+            confetti.className = `confetti-piece confetti-${shape}`;
+            confetti.style.backgroundColor = color;
+            confetti.style.color = color; // triangleの場合に使用
+
+            // 画面上部からランダムな横位置で開始
+            const startX = Math.random() * window.innerWidth;
+            const rotation = Math.random() * 720 + 360; // 1-2回転
+
+            // 空気抵抗を表現する左右の揺れを設定（6段階の揺れポイント）
+            const swayAmplitude = 15 + Math.random() * 25; // 揺れの振幅（15-40px）
+            const sway1 = (Math.random() - 0.5) * swayAmplitude;
+            const sway2 = (Math.random() - 0.5) * swayAmplitude;
+            const sway3 = (Math.random() - 0.5) * swayAmplitude;
+            const sway4 = (Math.random() - 0.5) * swayAmplitude;
+            const sway5 = (Math.random() - 0.5) * swayAmplitude;
+            const sway6 = (Math.random() - 0.5) * swayAmplitude;
+            const finalDrift = (Math.random() - 0.5) * 100; // 最終的な横方向ドリフト
+
+            confetti.style.left = `${startX}px`;
+            confetti.style.top = '-20px';
+
+            // 各段階の揺れを設定
+            confetti.style.setProperty('--sway-1', `${sway1}px`);
+            confetti.style.setProperty('--sway-2', `${sway2}px`);
+            confetti.style.setProperty('--sway-3', `${sway3}px`);
+            confetti.style.setProperty('--sway-4', `${sway4}px`);
+            confetti.style.setProperty('--sway-5', `${sway5}px`);
+            confetti.style.setProperty('--sway-6', `${sway6}px`);
+            confetti.style.setProperty('--drift-x', `${finalDrift}px`);
+            confetti.style.setProperty('--rotation', `${rotation}deg`);
+
+            // アニメーション時間をランダム化（3-5秒）
+            confetti.style.animationDuration = `${3 + Math.random() * 2}s`;
+            confetti.style.animationDelay = `${Math.random() * 0.5}s`;
+
+            container.appendChild(confetti);
+
+            // 紙吹雪が画面外に出たら削除
+            setTimeout(() => {
+                if (confetti.parentNode) {
+                    confetti.remove();
+                }
+            }, 6000);
         }
     }
 

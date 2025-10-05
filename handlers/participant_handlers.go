@@ -91,10 +91,14 @@ func (ph *ParticipantHandlers) Join(c *gin.Context) {
 		user = existingUser
 		ph.logger.LogUserReconnect(user.Nickname, sessionID)
 
-		assignedTeam, err = ph.teamRepo.GetTeamByID(user.ID)
-		if err != nil {
-			ph.logger.LogError("error during acquiring team by id", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Team database error"})
+		// Get team if user is assigned to a team
+		if user.TeamID != nil {
+			assignedTeam, err = ph.teamRepo.GetTeamByID(*user.TeamID)
+			if err != nil {
+				ph.logger.LogError("error during acquiring team by id", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Team database error"})
+				return
+			}
 		}
 	} else {
 		// If this is a rejoin attempt but no existing user found, return error

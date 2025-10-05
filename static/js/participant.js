@@ -251,18 +251,42 @@ class QuizParticipant {
                 body: JSON.stringify({ nickname: 'Rejoining...' })
             });
 
-            const data = await response.json();
-            
-            if (response.ok) {
+            // Check response status first
+            if (!response.ok) {
+                console.warn('Rejoin failed with status:', response.status);
+                localStorage.removeItem('quiz_session_id');
+                this.sessionID = null;
+                this.showJoinScreen();
+                return;
+            }
+
+            // Get response text first to debug JSON parsing issues
+            const responseText = await response.text();
+            console.log('Rejoin response text:', responseText);
+
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error('JSON parse error:', parseError);
+                console.error('Response text was:', responseText);
+                localStorage.removeItem('quiz_session_id');
+                this.sessionID = null;
+                this.showJoinScreen();
+                return;
+            }
+
+            if (data.user) {
                 this.user = data.user;
                 this.elements.userNickname.textContent = this.user.nickname;
                 this.elements.userScore.textContent = this.user.score;
                 this.elements.currentScore.textContent = this.user.score;
-                
+
                 this.showWaiting();
                 this.connectWebSocket();
             } else {
-                // Session rejoin failed, clear session and show join screen
+                // No user data, clear session and show join screen
+                console.warn('No user data in rejoin response');
                 localStorage.removeItem('quiz_session_id');
                 this.sessionID = null;
                 this.showJoinScreen();

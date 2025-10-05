@@ -135,23 +135,27 @@ class QuizAdmin {
 
     handleWebSocketMessage(message) {
         console.log('Received message:', message);
-        
+
         switch (message.type) {
+            case 'initial_sync':
+                this.handleInitialSync(message.data);
+                break;
+
             case 'user_joined':
                 this.handleUserJoined(message.data);
                 break;
 
             case 'user_left':
                 this.handleUserLeft(message.data);
-                
+
             case 'answer_received':
                 this.handleAnswerReceived(message.data);
                 break;
-                
+
             case 'event_started':
                 this.handleEventStarted(message.data);
                 break;
-                
+
             case 'question_start':
                 this.handleQuestionStart(message.data);
                 break;
@@ -164,15 +168,15 @@ class QuizAdmin {
 
             case 'answer_reveal':
                 break;
-                
+
             case 'team_assignment':
                 this.handleTeamAssignment(message.data);
                 break;
-                
+
             case 'final_results':
                 this.handleFinalResults(message.data);
                 break;
-                
+
             case 'team_member_added':
                 this.handleTeamMemberAdded(message.data);
                 break;
@@ -188,6 +192,34 @@ class QuizAdmin {
             default:
                 console.log('Unknown message type:', message.type);
         }
+    }
+
+    handleInitialSync(data) {
+        console.log('Initial sync received:', data);
+
+        if (!data) {
+            console.warn('No sync data received');
+            return;
+        }
+
+        // Update current question if available
+        if (data.current_question !== undefined) {
+            this.elements.currentQuestion.textContent = data.current_question;
+        }
+
+        // Update question display if question data is available
+        if (data.question_data) {
+            this.currentQuestion = data.question_data;
+            this.updateQuestionDisplay();
+        }
+
+        // Reload full status (participants, teams, etc.)
+        this.loadStatus();
+
+        // Reload available actions to update button states
+        this.loadAvailableActions();
+
+        this.addLog('サーバー状態と同期しました', 'success');
     }
 
     handleUserJoined(data) {

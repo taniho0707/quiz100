@@ -827,7 +827,7 @@ body {
     margin: 0 auto;
     padding: 20px;
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     gap: 15px;
     max-height: calc(100vh - 200px);
     overflow-y: auto;

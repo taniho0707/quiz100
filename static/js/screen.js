@@ -87,8 +87,12 @@ class QuizScreen {
 
     handleWebSocketMessage(message) {
         console.log('Received message:', message);
-        
+
         switch (message.type) {
+            case 'initial_sync':
+                this.handleInitialSync(message.data);
+                break;
+
             case 'user_joined':
                 this.handleUserJoined(message.data);
                 break;
@@ -96,64 +100,90 @@ class QuizScreen {
             case 'user_left':
                 this.handleUserLeft(message.data);
                 break;
-                
+
             case 'event_started':
                 this.handleEventStarted(message.data);
                 break;
-                
+
             case 'title_display':
                 this.handleTitleDisplay(message.data);
                 break;
-                
+
             case 'team_assignment':
                 this.handleTeamAssignment(message.data);
                 break;
-                
+
             case 'question_start':
                 this.handleQuestionStart(message.data);
                 break;
-                
+
             case 'answer_received':
                 this.handleAnswerReceived(message.data);
                 break;
-                
+
             case 'countdown':
                 this.showCountdown(message.data.seconds_left);
                 break;
-                
+
             case 'question_end':
                 // do nothing because running 'showCountdown(1)' to set 1sec timer
                 // this.hideCountdown();
                 this.blockAnswers();
                 break;
-                
+
             case 'answer_stats':
                 this.handleAnswerStats(message.data);
                 break;
-                
+
             case 'answer_reveal':
                 this.handleAnswerReveal(message.data);
                 break;
-                
+
             case 'final_results':
                 this.handleFinalResults(message.data);
                 break;
-                
+
             case 'celebration':
                 this.handleCelebration(message.data);
                 break;
-                
+
             case 'emoji':
                 this.handleEmojiReaction(message.data);
                 break;
-                
+
             case 'state_changed':
                 this.handleStateChanged(message.data);
                 break;
-                
+
             default:
                 console.log('Unknown message type:', message.type);
         }
+    }
+
+    handleInitialSync(data) {
+        console.log('Initial sync received:', data);
+
+        if (!data) {
+            console.warn('No sync data received');
+            return;
+        }
+
+        // Update participants
+        this.loadStatus();
+
+        // Sync to the current event state using handleStateChanged logic
+        if (data.event_state) {
+            const stateChangeData = {
+                new_state: data.event_state,
+                current_question: data.current_question,
+                question_number: data.current_question,
+                question: data.question_data ? data.question_data.question : null,
+                total_questions: data.question_data ? data.question_data.total_questions : 0
+            };
+            this.handleStateChanged(stateChangeData);
+        }
+
+        console.log('Screen synchronized with server state:', data.event_state);
     }
 
     handleUserJoined(data) {
@@ -459,8 +489,8 @@ class QuizScreen {
             </div>
         `;
 
-        // 最下位から順に上に挿入（最終的に1位が上、最下位が下になる）
-        container.insertBefore(teamElement, container.firstChild);
+        // column-reverseにより、appendChildで追加すると視覚的には上に表示される
+        container.appendChild(teamElement);
 
         // スライドインアニメーションを適用
         setTimeout(() => {

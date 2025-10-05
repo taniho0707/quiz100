@@ -102,29 +102,25 @@ func (h *Hub) Run() {
 			h.mutex.Lock()
 			h.Clients[client] = true
 			h.TotalConnected++
-			// Initialize client state for participants
-			if client.Type == ClientTypeParticipant {
-				h.ClientStates[client] = &ClientState{
-					LastSyncTime:    time.Now(),
-					SyncVersion:     0,
-					IsInitialized:   false,
-					LastEventState:  "",
-					LastQuestionNum: 0,
-				}
+			// Initialize client state for all client types
+			h.ClientStates[client] = &ClientState{
+				LastSyncTime:    time.Now(),
+				SyncVersion:     0,
+				IsInitialized:   false,
+				LastEventState:  "",
+				LastQuestionNum: 0,
 			}
 			h.mutex.Unlock()
 			log.Printf("Client registered: %s (UserID: %d)", client.Type, client.UserID)
 
-			// Trigger initial sync for participants
-			if client.Type == ClientTypeParticipant {
-				go func() {
-					time.Sleep(100 * time.Millisecond) // Wait for connection establishment
-					h.StateSync <- &StateSyncRequest{
-						Client:   client,
-						SyncType: "initial",
-					}
-				}()
-			}
+			// Trigger initial sync for all client types
+			go func() {
+				time.Sleep(100 * time.Millisecond) // Wait for connection establishment
+				h.StateSync <- &StateSyncRequest{
+					Client:   client,
+					SyncType: "initial",
+				}
+			}()
 
 		case client := <-h.Unregister:
 			h.mutex.Lock()
@@ -358,10 +354,6 @@ func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request, clientType Client
 
 // handleStateSyncRequest processes state synchronization requests
 func (h *Hub) handleStateSyncRequest(request *StateSyncRequest) {
-	if request.Client.Type != ClientTypeParticipant {
-		return // Only sync participants
-	}
-
 	h.mutex.Lock()
 	clientState, exists := h.ClientStates[request.Client]
 	if !exists {
@@ -374,7 +366,7 @@ func (h *Hub) handleStateSyncRequest(request *StateSyncRequest) {
 	h.mutex.Unlock()
 
 	if eventState == nil {
-		log.Printf("No event state available for sync, skipping client %d", request.Client.UserID)
+		log.Printf("No event state available for sync, skipping client %s (UserID: %d)", request.Client.Type, request.Client.UserID)
 		return
 	}
 
@@ -395,7 +387,7 @@ func (h *Hub) handleStateSyncRequest(request *StateSyncRequest) {
 		clientState.LastQuestionNum = eventState.CurrentQuestion
 		h.mutex.Unlock()
 
-		log.Printf("State sync completed for client %d (type: %s)", request.Client.UserID, request.SyncType)
+		log.Printf("State sync completed for client %s (UserID: %d, SyncType: %s)", request.Client.Type, request.Client.UserID, request.SyncType)
 	}
 }
 
@@ -434,17 +426,13 @@ func (h *Hub) UpdateEventState(eventState *EventSyncData) {
 
 // RequestStateSync allows external components to request state synchronization
 func (h *Hub) RequestStateSync(client *Client, syncType string) {
-	if client.Type != ClientTypeParticipant {
-		return
-	}
-
 	select {
 	case h.StateSync <- &StateSyncRequest{
 		Client:   client,
 		SyncType: syncType,
 	}:
 	default:
-		log.Printf("StateSync channel full, dropping sync request for client %d", client.UserID)
+		log.Printf("StateSync channel full, dropping sync request for client %s (UserID: %d)", client.Type, client.UserID)
 	}
 }
 

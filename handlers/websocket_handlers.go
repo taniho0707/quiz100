@@ -276,9 +276,9 @@ func (wh *WebSocketHandlers) CheckClientSync(c *gin.Context) {
 	isSynchronized := wh.stateService.IsClientSynchronized(userID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"user_id":          userID,
-		"synchronized":     isSynchronized,
-		"current_state":    wh.stateService.GetCurrentState(),
-		"current_question": wh.stateService.GetCurrentQuestion(),
+		"user_id":         userID,
+		"synchronized":    isSynchronized,
+		"current_state":   wh.stateService.GetCurrentState(),
+		"question_number": wh.stateService.GetQuestionNumber(),
 	})
 }

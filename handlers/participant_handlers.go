@@ -176,7 +176,7 @@ func (ph *ParticipantHandlers) Answer(c *gin.Context) {
 
 	// 現在回答受付中かどうか判断する
 	currentState := ph.stateService.GetCurrentState()
-	currentQuestion := ph.stateService.GetCurrentQuestion()
+	currentQuestion := ph.stateService.GetQuestionNumber()
 	if currentState != models.StateQuestionActive && currentState != models.StateCountdownActive {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Not currently accepting answers"})
 		return
@@ -217,6 +217,14 @@ func (ph *ParticipantHandlers) Answer(c *gin.Context) {
 
 	ph.logger.LogAnswer(user.Nickname, req.QuestionNumber, req.AnswerIndex, isCorrect)
 
+	// Get the saved answer from database
+	savedAnswer, err := ph.answerRepo.GetAnswerByUserAndQuestion(user.ID, req.QuestionNumber)
+	if err != nil {
+		ph.logger.LogError("getting saved answer", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve answer"})
+		return
+	}
+
 	// Broadcast answer received notification
 	answerData := gin.H{
 		"nickname":        user.Nickname,
@@ -228,7 +236,9 @@ func (ph *ParticipantHandlers) Answer(c *gin.Context) {
 		ph.logger.LogError("broadcasting answer received", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{})
+	c.JSON(http.StatusOK, gin.H{
+		"answer_index": savedAnswer.AnswerIndex,
+	})
 }
 
 // SendEmoji handles participant emoji reactions

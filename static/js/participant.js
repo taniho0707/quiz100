@@ -23,7 +23,8 @@ class QuizParticipant {
         this.elements = {
             connectionStatus: document.getElementById('connection-status'),
             connectionText: document.getElementById('connection-text'),
-            
+            connectionUsername: document.getElementById('connection-username'),
+
             resetSessionBtn: document.getElementById('reset-session-btn'),
             resetModal: document.getElementById('reset-modal'),
             resetCancelBtn: document.getElementById('reset-cancel-btn'),
@@ -399,11 +400,14 @@ class QuizParticipant {
             });
 
             const data = await response.json();
-            
+
             if (response.ok) {
-                this.user.score = data.new_score;
-                this.elements.currentScore.textContent = data.new_score;
-                this.elements.userScore.textContent = data.new_score;
+                // サーバーから返された選択肢でハイライトを更新
+                if (data.answer_index !== undefined) {
+                    this.selectedAnswer = data.answer_index - 1; // Convert 1-based to 0-based
+                    this.clearSelectionHighlight();
+                    this.highlightSelectedAnswer(this.selectedAnswer);
+                }
             } else {
                 // 「Already answered this question」エラーは無視（回答変更として扱う）
                 if (data.error && !data.error.includes('Already answered')) {
@@ -539,7 +543,7 @@ class QuizParticipant {
             teamHeader.className = 'team-header';
             teamHeader.innerHTML = `
                 <span class="rank">${index + 1}位</span>
-                <span class="team-name">【${team.name}】</span>
+                <!-- <span class="team-name">【${team.name}】</span> -->
                 <span class="team-score">${team.score}点</span>
             `;
             teamItem.appendChild(teamHeader);
@@ -749,7 +753,7 @@ class QuizParticipant {
     // State Synchronization Methods
 
     handleInitialSync(data) {
-        console.log('Received initial sync:', data);
+        // console.log('Received initial sync:', data);
 
         if (!data) {
             console.warn('No sync data received');
@@ -772,8 +776,14 @@ class QuizParticipant {
                 break;
 
             case 'question_active':
-                if (data.question_data) {
-                    this.showQuestion(data.question_data);
+                if (data.question) {
+                    this.showQuestion(data);
+
+                    // Restore user's selected answer if available
+                    if (data.answer_data && this.user && data.answer_data[this.user.id] !== undefined) {
+                        this.selectedAnswer = data.answer_data[this.user.id] - 1; // Convert 1-based to 0-based
+                        this.highlightSelectedAnswer(this.selectedAnswer);
+                    }
                 } else {
                     console.warn('No question data in sync for question_active state');
                     this.showWaiting();
@@ -781,11 +791,17 @@ class QuizParticipant {
                 break;
 
             case 'countdown_active':
-                if (data.question_data) {
-                    this.showQuestion(data.question_data);
+                if (data.question) {
+                    this.showQuestion(data.question);
                     // If already in countdown, disable choices
                     this.disableChoices();
                     this.blockAnswers();
+
+                    // Restore selected answer
+                    if (data.answer_data && this.user && data.answer_data[this.user.id] !== undefined) {
+                        this.selectedAnswer = data.answer_data[this.user.id] - 1; // Convert 1-based to 0-based
+                        this.highlightSelectedAnswer(this.selectedAnswer);
+                    }
                 } else {
                     this.showWaiting();
                 }
@@ -793,14 +809,20 @@ class QuizParticipant {
 
             case 'answer_stats':
             case 'answer_reveal':
-                if (data.question_data) {
-                    this.showQuestion(data.question_data);
+                if (data.question) {
+                    this.showQuestion(data.question);
                     this.disableChoices();
                     this.blockAnswers();
 
+                    // Restore selected answer
+                    if (data.answer_data && this.user && data.answer_data[this.user.id] !== undefined) {
+                        this.selectedAnswer = data.answer_data[this.user.id] - 1; // Convert 1-based to 0-based
+                        this.highlightSelectedAnswer(this.selectedAnswer);
+                    }
+
                     // If answer is revealed, show correct answer
-                    if (data.event_state === 'answer_reveal' && data.question_data.question && data.question_data.question.correct !== undefined) {
-                        this.showCorrectAnswer(data.question_data.question.correct);
+                    if (data.event_state === 'answer_reveal' && data.question && data.question.correct !== undefined) {
+                        this.showCorrectAnswer(data.question.correct);
                     }
                 } else {
                     this.showWaiting();
@@ -809,8 +831,18 @@ class QuizParticipant {
 
             case 'results':
             case 'celebration':
-                // Wait for actual results data via final_results message
-                this.showWaiting();
+                // Show results if participant data is available
+                if (data.participant_data) {
+                    const resultsData = {
+                        results: data.participant_data,
+                        teams: data.team || [],
+                        team_mode: data.team && data.team.length > 0
+                    };
+                    this.showResults(resultsData);
+                } else {
+                    // Fallback to waiting if no results data
+                    this.showWaiting();
+                }
                 break;
 
             case 'finished':
@@ -850,9 +882,13 @@ class QuizParticipant {
         if (connected) {
             this.elements.connectionStatus.className = 'status-indicator connected';
             this.elements.connectionText.textContent = '接続済み';
+            if (this.user && this.user.nickname) {
+                this.elements.connectionUsername.textContent = `(${this.user.nickname})`;
+            }
         } else {
             this.elements.connectionStatus.className = 'status-indicator disconnected';
             this.elements.connectionText.textContent = '接続中...';
+            this.elements.connectionUsername.textContent = '';
         }
     }
     

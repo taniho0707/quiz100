@@ -98,7 +98,7 @@ func (ah *AdminHandlers) GetAvailableActions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"available_actions": actions,
 		"current_state":     ah.stateService.GetCurrentState(),
-		"current_question":  ah.stateService.GetCurrentQuestion(),
+		"question_number":   ah.stateService.GetQuestionNumber(),
 	})
 }
 
@@ -119,18 +119,18 @@ func (ah *AdminHandlers) AdminJumpState(c *gin.Context) {
 
 	// Set question number if provided
 	if req.QuestionNumber != nil {
-		if err := ah.stateService.SetCurrentQuestion(*req.QuestionNumber); err != nil {
+		if err := ah.stateService.SetQuestionNumber(*req.QuestionNumber); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid question number: " + err.Error()})
 			return
 		}
 
 		// Also update current event if it exists
 		if ah.currentEvent != nil {
-			err := ah.eventRepo.UpdateCurrentQuestion(ah.currentEvent.ID, *req.QuestionNumber)
+			err := ah.eventRepo.UpdateQuestionNumber(ah.currentEvent.ID, *req.QuestionNumber)
 			if err != nil {
 				ah.logger.LogError("updating current question in database", err)
 			} else {
-				ah.currentEvent.CurrentQuestion = *req.QuestionNumber
+				ah.currentEvent.QuestionNumber = *req.QuestionNumber
 			}
 		}
 	}
@@ -144,9 +144,9 @@ func (ah *AdminHandlers) AdminJumpState(c *gin.Context) {
 
 	// Broadcast state change with question data if jumping to question-related state
 	stateData := gin.H{
-		"new_state":        result.NewState,
-		"current_question": ah.stateService.GetCurrentQuestion(),
-		"jumped":           true,
+		"new_state":       result.NewState,
+		"question_number": ah.stateService.GetQuestionNumber(),
+		"jumped":          true,
 	}
 
 	// Add current question data if jumping to question-related state
@@ -163,9 +163,9 @@ func (ah *AdminHandlers) AdminJumpState(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"message":          result.Message,
-		"new_state":        result.NewState,
-		"current_question": ah.stateService.GetCurrentQuestion(),
+		"message":         result.Message,
+		"new_state":       result.NewState,
+		"question_number": ah.stateService.GetQuestionNumber(),
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -279,7 +279,7 @@ func (ah *AdminHandlers) handleNextQuestion(c *gin.Context) {
 		return
 	}
 
-	questionNum := ah.stateService.GetCurrentQuestion()
+	questionNum := ah.stateService.GetQuestionNumber()
 	if questionNum > len(ah.config.Questions) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No more questions"})
 		return
@@ -289,11 +289,11 @@ func (ah *AdminHandlers) handleNextQuestion(c *gin.Context) {
 	ah.currentQuestion = &question
 
 	if ah.currentEvent != nil {
-		err := ah.eventRepo.UpdateCurrentQuestion(ah.currentEvent.ID, questionNum)
+		err := ah.eventRepo.UpdateQuestionNumber(ah.currentEvent.ID, questionNum)
 		if err != nil {
 			ah.logger.LogError("updating current question", err)
 		} else {
-			ah.currentEvent.CurrentQuestion = questionNum
+			ah.currentEvent.QuestionNumber = questionNum
 		}
 	}
 
@@ -322,9 +322,9 @@ func (ah *AdminHandlers) handleNextQuestion(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":       "次の問題を開始しました",
-		"question_data": questionData,
-		"state":         ah.stateService.GetCurrentState(),
+		"message":  "次の問題を開始しました",
+		"question": questionData,
+		"state":    ah.stateService.GetCurrentState(),
 	})
 }
 
@@ -356,7 +356,7 @@ func (ah *AdminHandlers) handleShowAnswerStats(c *gin.Context) {
 	users, _ := ah.userRepo.GetAllUsers()
 	answeredCount := 0
 	correctCount := 0
-	currentQuestionNum := ah.stateService.GetCurrentQuestion()
+	currentQuestionNum := ah.stateService.GetQuestionNumber()
 
 	// 現在の問題情報を取得
 	if ah.currentQuestion == nil {

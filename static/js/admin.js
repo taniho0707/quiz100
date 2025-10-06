@@ -203,13 +203,13 @@ class QuizAdmin {
         }
 
         // Update current question if available
-        if (data.current_question !== undefined) {
-            this.elements.currentQuestion.textContent = data.current_question;
+        if (data.question_number !== undefined) {
+            this.elements.currentQuestion.textContent = data.question_number;
         }
 
         // Update question display if question data is available
-        if (data.question_data) {
-            this.currentQuestion = data.question_data;
+        if (data.question) {
+            this.currentQuestion = data.question;
             this.updateQuestionDisplay();
         }
 
@@ -331,7 +331,7 @@ class QuizAdmin {
                 this.addLog(`問題 ${data.question_number} を開始しました`, 'info');
                 
                 if (this.currentEvent) {
-                    this.currentEvent.current_question = data.question_number;
+                    this.currentEvent.question_number = data.question_number;
                     this.updateEventStatus();
                 }
             } else {
@@ -538,7 +538,7 @@ class QuizAdmin {
                 // 必要に応じて特定の更新処理
                 switch(action) {
                     case 'next_question':
-                        this.currentQuestion = data.question_data;
+                        this.currentQuestion = data.question;
                         this.answers.clear();
                         this.updateQuestionDisplay();
                         this.updateAnswersDisplay();
@@ -586,7 +586,7 @@ class QuizAdmin {
         //     this.currentEvent.status === 'started' ? '進行中' : 
         //     this.currentEvent.status === 'finished' ? '終了' : '待機中';
         
-        this.elements.currentQuestion.textContent = this.currentEvent.current_question || 0;
+        this.elements.currentQuestion.textContent = this.currentEvent.question_number || 0;
         
         this.elements.startEventBtn.disabled = this.currentEvent.status === 'started';
         this.elements.nextQuestionBtn.disabled = this.currentEvent.status !== 'started';

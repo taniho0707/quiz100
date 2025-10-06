@@ -171,16 +171,113 @@ class QuizScreen {
         // Update participants
         this.loadStatus();
 
-        // Sync to the current event state using handleStateChanged logic
-        if (data.event_state) {
-            const stateChangeData = {
-                new_state: data.event_state,
-                current_question: data.current_question,
-                question_number: data.current_question,
-                question: data.question_data ? data.question_data.question : null,
-                total_questions: data.question_data ? data.question_data.total_questions : 0
-            };
-            this.handleStateChanged(stateChangeData);
+        // Sync to current state with appropriate data
+        const { EVENT_STATES } = QuizConstants;
+
+        switch (data.event_state) {
+            case EVENT_STATES.WAITING:
+            case EVENT_STATES.STARTED:
+                this.showWaitingScreen();
+                break;
+
+            case EVENT_STATES.TITLE_DISPLAY:
+                this.showTitleScreen({ title: this.elements.eventTitle.textContent });
+                break;
+
+            case EVENT_STATES.TEAM_ASSIGNMENT:
+                if (data.team && data.team.length > 0) {
+                    this.showTeamAssignmentScreen(data.team);
+                } else {
+                    this.showWaitingScreen();
+                }
+                break;
+
+            case EVENT_STATES.QUESTION_ACTIVE:
+                if (data.question) {
+                    this.currentQuestion = data.question;
+                    this.displayQuestion(data);
+                    this.showQuestionScreen();
+                } else {
+                    this.showWaitingScreen();
+                }
+                break;
+
+            case EVENT_STATES.COUNTDOWN_ACTIVE:
+                if (data.question) {
+                    this.currentQuestion = data.question;
+                    this.displayQuestion(data);
+                    this.showQuestionScreen();
+                    // カウントダウンは表示しない（リロード時には既に終わっている可能性が高い）
+                } else {
+                    this.showWaitingScreen();
+                }
+                break;
+
+            case EVENT_STATES.ANSWER_STATS:
+                if (data.question && data.participant_data) {
+                    this.currentQuestion = data.question;
+                    // 回答統計を表示
+                    const totalParticipants = data.participant_data.length;
+                    const choicesCounts = this.calculateChoicesCounts(data.answer_data, data.question.choices.length);
+                    this.displayQuestion(data);
+                    this.showQuestionScreen();
+                    this.showChoicesWithCounts(totalParticipants, choicesCounts);
+                } else {
+                    this.showWaitingScreen();
+                }
+                break;
+
+            case EVENT_STATES.ANSWER_REVEAL:
+                if (data.question) {
+                    this.currentQuestion = data.question;
+                    this.displayQuestion(data);
+                    this.showQuestionScreen();
+
+                    // 回答統計を先に表示
+                    if (data.participant_data && data.answer_data) {
+                        const totalParticipants = data.participant_data.length;
+                        const choicesCounts = this.calculateChoicesCounts(data.answer_data, data.question.choices.length);
+                        this.showChoicesWithCounts(totalParticipants, choicesCounts);
+                    }
+
+                    // その後に正解をハイライト表示（選択肢再描画後に実行）
+                    if (data.question && data.question.correct !== undefined) {
+                        this.showAnswerRevealScreen({ correct: data.question.correct });
+                    }
+                } else {
+                    this.showWaitingScreen();
+                }
+                break;
+
+            case EVENT_STATES.RESULTS:
+            case EVENT_STATES.CELEBRATION:
+                // 結果画面を表示
+                if (data.team && data.team.length > 0) {
+                    // チーム戦の結果
+                    this.handleFinalResults({
+                        team_mode: true,
+                        teams: data.team,
+                        results: []
+                    });
+                } else if (data.participant_data) {
+                    // 個人戦の結果
+                    this.handleFinalResults({
+                        team_mode: false,
+                        teams: [],
+                        results: data.participant_data
+                    });
+                } else {
+                    this.showWaitingScreen();
+                }
+                break;
+
+            case EVENT_STATES.FINISHED:
+                this.showWaitingScreen();
+                break;
+
+            default:
+                console.log('Unknown event state in sync:', data.event_state);
+                this.showWaitingScreen();
         }
 
         console.log('Screen synchronized with server state:', data.event_state);
@@ -304,6 +401,22 @@ class QuizScreen {
         this.updateAnswerProgress();
     }
 
+    calculateChoicesCounts(answerData, choicesCount) {
+        const counts = new Array(choicesCount).fill(0);
+
+        if (!answerData) return counts;
+
+        // answerData は { "user_id": answer_index } の形式
+        Object.values(answerData).forEach(answerIndex => {
+            const index = answerIndex - 1; // Convert 1-based to 0-based
+            if (index >= 0 && index < choicesCount) {
+                counts[index]++;
+            }
+        });
+
+        return counts;
+    }
+
     showWaitingScreen() {
         this.hideAllScreens();
         this.elements.waitingScreen.classList.remove('hidden');
@@ -368,7 +481,7 @@ class QuizScreen {
         
         this.elements.choicesDisplay.innerHTML = '';
         
-        this.currentQuestion.question.choices.forEach((choice, index) => {
+        this.currentQuestion.choices.forEach((choice, index) => {
             const choiceDiv = document.createElement('div');
             const count = choicesCounts[index] || 0;
             choiceDiv.className = `choice-display choice-with-stats`;
@@ -870,9 +983,9 @@ class QuizScreen {
                         total_questions: data.total_questions
                     };
                     this.handleQuestionStart(this.currentQuestion);
-                } else if (data.current_question > 0) {
+                } else if (data.question_number > 0) {
                     // Load question from API if not provided
-                    this.loadQuestionFromAPI(data.current_question);
+                    this.loadQuestionFromAPI(data.question_number);
                 }
                 break;
                 

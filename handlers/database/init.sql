@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     status TEXT DEFAULT 'waiting', -- waiting, started, finished
-    current_question INTEGER DEFAULT 0,
+    question_number INTEGER DEFAULT 0,
     team_mode BOOLEAN DEFAULT false,
     team_size INTEGER DEFAULT 1,
     qrcode TEXT DEFAULT '',

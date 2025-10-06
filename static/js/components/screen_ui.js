@@ -288,7 +288,7 @@ class ScreenUI {
         }
         
         const question = data.question || this.questionData;
-        const questionNumber = data.question_number || data.current_question || 1;
+        const questionNumber = data.question_number || data.question_number || 1;
         const totalQuestions = data.total_questions || 5;
         
         if (!question) {

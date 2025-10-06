@@ -57,7 +57,7 @@ func main() {
 
 	// Initialize state manager and service
 	stateManager := models.NewEventStateManager(config.Event.TeamMode, len(config.Questions))
-	stateService := services.NewStateService(stateManager, hubManager, hub, logger, config, userRepo, teamRepo)
+	stateService := services.NewStateService(stateManager, hubManager, hub, logger, config, userRepo, teamRepo, answerRepo)
 
 	// Initialize split handlers
 	participantHandlers := handlers.NewParticipantHandlers(userRepo, teamRepo, answerRepo, emojiReactionRepo, hubManager, stateService, *logger, config)

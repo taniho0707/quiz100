@@ -56,7 +56,7 @@ class StateManager {
      * 現在の問題番号を取得
      * @returns {number} 現在の問題番号
      */
-    getCurrentQuestion() {
+    getQuestionNumber() {
         return this.currentQuestion;
     }
 

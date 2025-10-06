@@ -3,7 +3,9 @@ package websocket
 import (
 	"encoding/json"
 	"log"
+	"maps"
 	"net/http"
+	"quiz100/models"
 	"sync"
 	"time"
 
@@ -54,13 +56,14 @@ type ClientState struct {
 
 // EventSyncData contains all data needed for state synchronization
 type EventSyncData struct {
-	EventState      string                 `json:"event_state"`
-	CurrentQuestion int                    `json:"current_question"`
-	QuestionData    map[string]interface{} `json:"question_data,omitempty"`
-	TeamData        []interface{}          `json:"team_data,omitempty"`
-	ParticipantData []interface{}          `json:"participant_data,omitempty"`
-	SyncVersion     int                    `json:"sync_version"`
-	Timestamp       time.Time              `json:"timestamp"`
+	EventState      string          `json:"event_state"`
+	QuestionNumber  int             `json:"question_number"`
+	QuestionData    models.Question `json:"question"`
+	TeamData        []any           `json:"team,omitempty"`             // only sending to admin
+	ParticipantData []any           `json:"participant_data,omitempty"` // only sending to admin
+	AnswerData      map[string]any  `json:"answer_data,omitempty"`      // user_id(string) -> answer_index
+	// SyncVersion     int             `json:"sync_version"`
+	// Timestamp       time.Time       `json:"timestamp"`
 }
 
 // StateSyncRequest represents a state synchronization request
@@ -362,29 +365,63 @@ func (h *Hub) handleStateSyncRequest(request *StateSyncRequest) {
 	}
 
 	// Get latest event state
-	eventState := h.LastEventState
+	// eventState := h.LastEventState
 	h.mutex.Unlock()
 
-	if eventState == nil {
+	if h.LastEventState == nil {
 		log.Printf("No event state available for sync, skipping client %s (UserID: %d)", request.Client.Type, request.Client.UserID)
 		return
 	}
 
 	// Check if sync is needed
 	if request.SyncType == "initial" ||
-		clientState.LastEventState != eventState.EventState ||
-		clientState.LastQuestionNum != eventState.CurrentQuestion ||
+		clientState.LastEventState != h.LastEventState.EventState ||
+		clientState.LastQuestionNum != h.LastEventState.QuestionNumber ||
 		!clientState.IsInitialized {
 
-		h.sendInitialSync(request.Client, eventState)
+		var reducedEventState EventSyncData
+		reducedEventState.EventState = h.LastEventState.EventState
+		reducedEventState.QuestionNumber = h.LastEventState.QuestionNumber
+		reducedEventState.QuestionData = models.Question{
+			Type:    h.LastEventState.QuestionData.Type,
+			Text:    h.LastEventState.QuestionData.Text,
+			Image:   h.LastEventState.QuestionData.Image,
+			Choices: h.LastEventState.QuestionData.Choices,
+			Correct: h.LastEventState.QuestionData.Correct,
+		}
+		reducedEventState.TeamData = h.LastEventState.TeamData
+		reducedEventState.ParticipantData = h.LastEventState.ParticipantData
+		reducedEventState.AnswerData = make(map[string]any)
+		maps.Copy(reducedEventState.AnswerData, h.LastEventState.AnswerData)
+
+		switch request.Client.Type {
+		case ClientTypeParticipant:
+			reducedEventState.QuestionData.Correct = 0 // invalid data
+			reducedEventState.TeamData = nil
+			reducedEventState.ParticipantData = nil
+			// reducedEventState.AnswerData から該当ユーザーのみのデータに絞る
+			// FIXME:
+			for k, v := range h.LastEventState.ParticipantData {
+				if k == request.Client.UserID {
+					reducedEventState.ParticipantData[k] = v
+				}
+			}
+		case ClientTypeScreen:
+			reducedEventState.QuestionData.Correct = 0 // invalid data
+		case ClientTypeAdmin:
+			// do nothing
+		default:
+			return
+		}
+		h.sendInitialSync(request.Client, &reducedEventState)
 
 		// Update client state
 		h.mutex.Lock()
 		clientState.LastSyncTime = time.Now()
-		clientState.SyncVersion = eventState.SyncVersion
+		// clientState.SyncVersion = eventState.SyncVersion
 		clientState.IsInitialized = true
-		clientState.LastEventState = eventState.EventState
-		clientState.LastQuestionNum = eventState.CurrentQuestion
+		clientState.LastEventState = h.LastEventState.EventState
+		clientState.LastQuestionNum = h.LastEventState.QuestionNumber
 		h.mutex.Unlock()
 
 		log.Printf("State sync completed for client %s (UserID: %d, SyncType: %s)", request.Client.Type, request.Client.UserID, request.SyncType)
@@ -415,13 +452,12 @@ func (h *Hub) sendInitialSync(client *Client, eventState *EventSyncData) {
 // UpdateEventState updates the global event state for synchronization
 func (h *Hub) UpdateEventState(eventState *EventSyncData) {
 	h.mutex.Lock()
-	eventState.SyncVersion++
-	eventState.Timestamp = time.Now()
+	// eventState.SyncVersion++
+	// eventState.Timestamp = time.Now()
 	h.LastEventState = eventState
 	h.mutex.Unlock()
 
-	log.Printf("Event state updated: %s (Question: %d, Version: %d)",
-		eventState.EventState, eventState.CurrentQuestion, eventState.SyncVersion)
+	log.Printf("Event state updated: %s (Question: %d)", eventState.EventState, eventState.QuestionNumber)
 }
 
 // RequestStateSync allows external components to request state synchronization
@@ -460,7 +496,7 @@ func (h *Hub) checkAndSyncOutdatedClients() {
 			// Check if client needs sync (state mismatch or too old)
 			if currentEventState != nil &&
 				(state.LastEventState != currentEventState.EventState ||
-					state.LastQuestionNum != currentEventState.CurrentQuestion ||
+					state.LastQuestionNum != currentEventState.QuestionNumber ||
 					time.Since(state.LastSyncTime) > 30*time.Second) {
 				outdatedClients = append(outdatedClients, client)
 			}

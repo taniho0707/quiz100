@@ -18,6 +18,7 @@ type StateService struct {
 	config       *models.Config
 	userRepo     *models.UserRepository
 	teamRepo     *models.TeamRepository
+	answerRepo   *models.AnswerRepository
 }
 
 // Logger interface for logging operations
@@ -37,7 +38,7 @@ type StateTransitionResult struct {
 }
 
 // NewStateService creates a new StateService instance
-func NewStateService(stateManager *models.EventStateManager, hubManager *websocket.HubManager, hub *websocket.Hub, logger Logger, config *models.Config, userRepo *models.UserRepository, teamRepo *models.TeamRepository) *StateService {
+func NewStateService(stateManager *models.EventStateManager, hubManager *websocket.HubManager, hub *websocket.Hub, logger Logger, config *models.Config, userRepo *models.UserRepository, teamRepo *models.TeamRepository, answerRepo *models.AnswerRepository) *StateService {
 	ss := &StateService{
 		stateManager: stateManager,
 		hubManager:   hubManager,
@@ -46,6 +47,7 @@ func NewStateService(stateManager *models.EventStateManager, hubManager *websock
 		config:       config,
 		userRepo:     userRepo,
 		teamRepo:     teamRepo,
+		answerRepo:   answerRepo,
 	}
 
 	// // Start periodic sync with 15-second interval
@@ -61,9 +63,9 @@ func (ss *StateService) GetCurrentState() models.EventState {
 	return ss.stateManager.GetCurrentState()
 }
 
-// GetCurrentQuestion returns the current question number
-func (ss *StateService) GetCurrentQuestion() int {
-	return ss.stateManager.GetCurrentQuestion()
+// GetQuestionNumber returns the current question number
+func (ss *StateService) GetQuestionNumber() int {
+	return ss.stateManager.GetQuestionNumber()
 }
 
 // GetAvailableActions returns available actions for the current state
@@ -156,9 +158,9 @@ func (ss *StateService) JumpToState(targetState models.EventState) *StateTransit
 	}
 }
 
-// SetCurrentQuestion sets the current question number
-func (ss *StateService) SetCurrentQuestion(questionNumber int) error {
-	return ss.stateManager.SetCurrentQuestion(questionNumber)
+// SetQuestionNumber sets the current question number
+func (ss *StateService) SetQuestionNumber(questionNumber int) error {
+	return ss.stateManager.SetQuestionNumber(questionNumber)
 }
 
 // NextQuestion advances to the next question
@@ -216,7 +218,7 @@ func (ss *StateService) StartCountdownWithAutoTransition() *StateTransitionResul
 func (ss *StateService) GetStateInfo() map[string]any {
 	return map[string]any{
 		"current_state":     ss.stateManager.GetCurrentState(),
-		"current_question":  ss.stateManager.GetCurrentQuestion(),
+		"question_number":   ss.stateManager.GetQuestionNumber(),
 		"available_actions": ss.stateManager.GetAvailableActions(),
 		"state_label":       models.GetStateLabel(ss.stateManager.GetCurrentState()),
 		"timestamp":         time.Now().UTC(),
@@ -249,11 +251,11 @@ func (ss *StateService) ValidateStateTransition(from, to models.EventState) erro
 // broadcastStateChange broadcasts state change notification to all clients
 func (ss *StateService) broadcastStateChange(previousState, newState models.EventState) {
 	stateData := map[string]any{
-		"previous_state":   previousState,
-		"new_state":        newState,
-		"current_question": ss.stateManager.GetCurrentQuestion(),
-		"jumped":           false, // This could be parameterized if needed
-		"timestamp":        time.Now().UTC(),
+		"previous_state":  previousState,
+		"new_state":       newState,
+		"question_number": ss.stateManager.GetQuestionNumber(),
+		"jumped":          false, // This could be parameterized if needed
+		"timestamp":       time.Now().UTC(),
 	}
 
 	if err := ss.hubManager.BroadcastStateChanged(stateData); err != nil {
@@ -300,13 +302,13 @@ func (ss *StateService) AutoTransitionToCelebration(delay time.Duration) {
 // GenerateEventSyncData creates comprehensive synchronization data for the current state
 func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
 	currentState := ss.stateManager.GetCurrentState()
-	currentQuestion := ss.stateManager.GetCurrentQuestion()
+	currentQuestion := ss.stateManager.GetQuestionNumber()
 
 	syncData := &websocket.EventSyncData{
-		EventState:      string(currentState),
-		CurrentQuestion: currentQuestion,
-		SyncVersion:     0, // Will be set by Hub
-		Timestamp:       time.Now(),
+		EventState:     string(currentState),
+		QuestionNumber: currentQuestion,
+		// SyncVersion:     0, // Will be set by Hub
+		// Timestamp:       time.Now(),
 	}
 
 	// Add question data if in question-related state
@@ -316,9 +318,12 @@ func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
 		currentState == models.StateAnswerReveal {
 		if ss.config != nil && currentQuestion > 0 && currentQuestion <= len(ss.config.Questions) {
 			question := ss.config.Questions[currentQuestion-1]
-			syncData.QuestionData = map[string]any{
-				"question_number": currentQuestion,
-				"question":        question,
+			syncData.QuestionData = models.Question{
+				Type:    question.Type,
+				Text:    question.Text,
+				Image:   question.Image,
+				Choices: question.Choices,
+				Correct: 0, // invalid value
 			}
 		}
 	}
@@ -355,6 +360,25 @@ func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
 			}
 		}
 		syncData.ParticipantData = participantData
+	}
+
+	// Add answer data for current question if in question-related states
+	if currentQuestion > 0 &&
+		(currentState == models.StateQuestionActive ||
+			currentState == models.StateCountdownActive ||
+			currentState == models.StateAnswerStats ||
+			currentState == models.StateAnswerReveal) {
+
+		answerData := make(map[string]any)
+		if users, err := ss.userRepo.GetAllUsers(); err == nil {
+			for _, user := range users {
+				answer, err := ss.answerRepo.GetAnswerByUserAndQuestion(user.ID, currentQuestion)
+				if err == nil && answer != nil {
+					answerData[fmt.Sprintf("%d", user.ID)] = answer.AnswerIndex
+				}
+			}
+		}
+		syncData.AnswerData = answerData
 	}
 
 	return syncData
@@ -428,7 +452,7 @@ func (ss *StateService) IsClientSynchronized(userID int) bool {
 	}
 
 	currentState := string(ss.stateManager.GetCurrentState())
-	currentQuestion := ss.stateManager.GetCurrentQuestion()
+	currentQuestion := ss.stateManager.GetQuestionNumber()
 
 	return clientState.LastEventState == currentState &&
 		clientState.LastQuestionNum == currentQuestion &&
@@ -445,7 +469,7 @@ func (ss *StateService) GetSynchronizationReport() map[string]any {
 
 	syncStatus := ss.hub.GetClientSyncStatus()
 	currentState := string(ss.stateManager.GetCurrentState())
-	currentQuestion := ss.stateManager.GetCurrentQuestion()
+	questionNumber := ss.stateManager.GetQuestionNumber()
 
 	synchronized := 0
 	outdated := 0
@@ -456,7 +480,7 @@ func (ss *StateService) GetSynchronizationReport() map[string]any {
 	for userID, clientState := range syncStatus {
 		isSync := clientState.IsInitialized &&
 			clientState.LastEventState == currentState &&
-			clientState.LastQuestionNum == currentQuestion &&
+			clientState.LastQuestionNum == questionNumber &&
 			time.Since(clientState.LastSyncTime) < 60*time.Second
 
 		var status string
@@ -482,14 +506,14 @@ func (ss *StateService) GetSynchronizationReport() map[string]any {
 	}
 
 	return map[string]any{
-		"current_state":    currentState,
-		"current_question": currentQuestion,
-		"total_clients":    len(syncStatus),
-		"synchronized":     synchronized,
-		"outdated":         outdated,
-		"uninitialized":    uninitialized,
-		"sync_rate":        float64(synchronized) / float64(len(syncStatus)) * 100,
-		"client_details":   clientReports,
-		"timestamp":        time.Now(),
+		"current_state":   currentState,
+		"question_number": questionNumber,
+		"total_clients":   len(syncStatus),
+		"synchronized":    synchronized,
+		"outdated":        outdated,
+		"uninitialized":   uninitialized,
+		"sync_rate":       float64(synchronized) / float64(len(syncStatus)) * 100,
+		"client_details":  clientReports,
+		"timestamp":       time.Now(),
 	}
 }

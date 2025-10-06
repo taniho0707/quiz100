@@ -165,7 +165,7 @@ func (rs *RobustnessService) createEventSnapshot() *EventSnapshot {
 	return &EventSnapshot{
 		Timestamp:      time.Now(),
 		State:          rs.stateManager.GetCurrentState(),
-		QuestionNumber: rs.stateManager.GetCurrentQuestion(),
+		QuestionNumber: rs.stateManager.GetQuestionNumber(),
 		ConnectedUsers: rs.getConnectedUserCount(),
 		ClientCounts:   rs.hubManager.GetClientCount(),
 		SystemHealth:   rs.getSystemHealthMetrics(),
@@ -224,8 +224,8 @@ func (rs *RobustnessService) checkStateConsistency(previous, current *EventSnaps
 			Type:        "fix_question_number",
 			Description: "Fix invalid question number",
 			Data: map[string]interface{}{
-				"current_question": current.QuestionNumber,
-				"max_questions":    len(rs.config.Questions),
+				"question_number": current.QuestionNumber,
+				"max_questions":   len(rs.config.Questions),
 			},
 			Timestamp: time.Now(),
 		})
@@ -346,9 +346,9 @@ func (rs *RobustnessService) syncStateAcrossClients(data map[string]interface{})
 
 // fixQuestionNumberInconsistency fixes question number inconsistencies
 func (rs *RobustnessService) fixQuestionNumberInconsistency(data map[string]interface{}) error {
-	currentQuestion, ok := data["current_question"].(int)
+	currentQuestion, ok := data["question_number"].(int)
 	if !ok {
-		return fmt.Errorf("invalid current_question in data")
+		return fmt.Errorf("invalid question_number in data")
 	}
 
 	maxQuestions, ok := data["max_questions"].(int)
@@ -366,7 +366,7 @@ func (rs *RobustnessService) fixQuestionNumberInconsistency(data map[string]inte
 		return nil // No fix needed
 	}
 
-	err := rs.stateManager.SetCurrentQuestion(newQuestionNumber)
+	err := rs.stateManager.SetQuestionNumber(newQuestionNumber)
 	if err != nil {
 		return fmt.Errorf("failed to fix question number: %w", err)
 	}
@@ -457,7 +457,7 @@ func (rs *RobustnessService) RecoverFromStateInconsistency(expectedState, actual
 	// Force sync to actual state
 	syncData := map[string]interface{}{
 		"state":           actualState,
-		"question_number": rs.stateManager.GetCurrentQuestion(),
+		"question_number": rs.stateManager.GetQuestionNumber(),
 	}
 
 	return rs.syncStateAcrossClients(syncData)
@@ -479,7 +479,7 @@ func (rs *RobustnessService) EmergencyReset() error {
 	}
 
 	// Reset question number
-	err = rs.stateManager.SetCurrentQuestion(0)
+	err = rs.stateManager.SetQuestionNumber(0)
 	if err != nil {
 		return fmt.Errorf("failed to reset question number: %w", err)
 	}

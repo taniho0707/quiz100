@@ -56,13 +56,13 @@ type Question struct {
 }
 
 type Event struct {
-	ID              int       `json:"id"`
-	Title           string    `json:"title"`
-	IsActive        bool      `json:"is_active"`
-	CurrentQuestion int       `json:"current_question"`
-	TeamMode        bool      `json:"team_mode"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID             int       `json:"id"`
+	Title          string    `json:"title"`
+	IsActive       bool      `json:"is_active"`
+	QuestionNumber int       `json:"question_number"`
+	TeamMode       bool      `json:"team_mode"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // 静的設定
@@ -71,11 +71,6 @@ type StaticConfig struct {
 	TeamMode bool   `json:"team_mode"`
 	TeamSize int    `json:"team_size"`
 	QRCode   string `json:"qrcode"`
-}
-
-// ヘルパー関数
-func intPtr(i int) *int {
-	return &i
 }
 
 var upgrader = websocket.Upgrader{
@@ -89,7 +84,7 @@ var currentMessageIndex = 0
 
 // 静的設定
 var staticConfig = StaticConfig{
-	Title:    "🎉 テスト宴会クイズ大会",
+	Title:    "🎉 クイズ大会",
 	TeamMode: true,
 	TeamSize: 5,
 	QRCode:   "/images/qr_test.png",

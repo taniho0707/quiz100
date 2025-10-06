@@ -365,7 +365,7 @@ correct = 1
 - **AdminJumpState API**: `/api/admin/jump-state` - 任意のステートへの直接ジャンプ
 - **GetAvailableStates API**: `/api/admin/available-states` - 選択可能なステート一覧を日本語ラベル付きで提供
 - **JumpToState機能**: EventStateManagerに遷移制限なしのジャンプ機能を追加
-- **SetCurrentQuestion機能**: 問題番号の同時変更をサポート
+- **SetQuestionNumber機能**: 問題番号の同時変更をサポート
 - **問題データ同期**: 問題番号指定時は問題内容も自動で設定・配信
 
 #### フロントエンド実装（管理者画面）
@@ -679,7 +679,7 @@ bad:     ≥1000ms/timeout (赤色表示)
 ```go
 type EventSyncData struct {
     EventState      string                 // 現在のイベント状態
-    CurrentQuestion int                    // 現在問題番号
+    QuestionNumber  int                    // 現在問題番号
     QuestionData    map[string]interface{} // 問題データ（状態に応じて）
     TeamData        []interface{}          // チームデータ（チーム戦時）
     ParticipantData []interface{}          // 参加者データ（管理用）
@@ -742,7 +742,7 @@ type EventSyncData struct {
 GET /api/ws/sync-status
 Response: {
   "current_state": "question_active",
-  "current_question": 3,
+  "question_number": 3,
   "total_clients": 25,
   "synchronized": 23,
   "outdated": 2,

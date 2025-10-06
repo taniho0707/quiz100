@@ -27,13 +27,13 @@ type Team struct {
 }
 
 type Event struct {
-	ID              int       `json:"id" db:"id"`
-	Title           string    `json:"title" db:"title"`
-	Status          string    `json:"status" db:"status"`
-	CurrentQuestion int       `json:"current_question" db:"current_question"`
-	TeamMode        bool      `json:"team_mode" db:"team_mode"`
-	CreatedAt       time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at" db:"updated_at"`
+	ID             int       `json:"id" db:"id"`
+	Title          string    `json:"title" db:"title"`
+	Status         string    `json:"status" db:"status"`
+	QuestionNumber int       `json:"question_number" db:"question_number"`
+	TeamMode       bool      `json:"team_mode" db:"team_mode"`
+	CreatedAt      time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type Answer struct {
@@ -194,10 +194,10 @@ func (r *EventRepository) CreateEvent(title string, teamMode bool, teamSize int,
 
 func (r *EventRepository) GetCurrentEvent() (*Event, error) {
 	event := &Event{}
-	query := `SELECT id, title, status, current_question, team_mode, created_at, updated_at FROM events ORDER BY created_at DESC LIMIT 1`
+	query := `SELECT id, title, status, question_number, team_mode, created_at, updated_at FROM events ORDER BY created_at DESC LIMIT 1`
 
 	err := r.db.QueryRow(query).Scan(
-		&event.ID, &event.Title, &event.Status, &event.CurrentQuestion,
+		&event.ID, &event.Title, &event.Status, &event.QuestionNumber,
 		&event.TeamMode, &event.CreatedAt, &event.UpdatedAt,
 	)
 
@@ -210,10 +210,10 @@ func (r *EventRepository) GetCurrentEvent() (*Event, error) {
 
 func (r *EventRepository) GetEvent(id int) (*Event, error) {
 	event := &Event{}
-	query := `SELECT id, title, status, current_question, team_mode, created_at, updated_at FROM events WHERE id = ?`
+	query := `SELECT id, title, status, question_number, team_mode, created_at, updated_at FROM events WHERE id = ?`
 
 	err := r.db.QueryRow(query, id).Scan(
-		&event.ID, &event.Title, &event.Status, &event.CurrentQuestion,
+		&event.ID, &event.Title, &event.Status, &event.QuestionNumber,
 		&event.TeamMode, &event.CreatedAt, &event.UpdatedAt,
 	)
 
@@ -226,8 +226,8 @@ func (r *EventRepository) UpdateEventStatus(id int, status string) error {
 	return err
 }
 
-func (r *EventRepository) UpdateCurrentQuestion(id int, questionNumber int) error {
-	query := `UPDATE events SET current_question = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+func (r *EventRepository) UpdateQuestionNumber(id int, questionNumber int) error {
+	query := `UPDATE events SET question_number = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
 	_, err := r.db.Exec(query, questionNumber, id)
 	return err
 }
@@ -513,11 +513,11 @@ func (esm *EventStateManager) GetCurrentState() EventState {
 	return esm.currentState
 }
 
-func (esm *EventStateManager) GetCurrentQuestion() int {
+func (esm *EventStateManager) GetQuestionNumber() int {
 	return esm.currentQuestion
 }
 
-func (esm *EventStateManager) SetCurrentQuestion(questionNumber int) error {
+func (esm *EventStateManager) SetQuestionNumber(questionNumber int) error {
 	if questionNumber < 0 || questionNumber > esm.totalQuestions {
 		return fmt.Errorf("invalid question number: %d (valid range: 0-%d)", questionNumber, esm.totalQuestions)
 	}

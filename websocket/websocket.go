@@ -56,12 +56,12 @@ type ClientState struct {
 
 // EventSyncData contains all data needed for state synchronization
 type EventSyncData struct {
-	EventState      string          `json:"event_state"`
-	QuestionNumber  int             `json:"question_number"`
-	QuestionData    models.Question `json:"question"`
-	TeamData        []any           `json:"team,omitempty"`             // only sending to admin
-	ParticipantData []any           `json:"participant_data,omitempty"` // only sending to admin
-	AnswerData      map[string]any  `json:"answer_data,omitempty"`      // user_id(string) -> answer_index
+	EventState      string           `json:"event_state"`
+	QuestionNumber  int              `json:"question_number"`
+	QuestionData    models.Question  `json:"question"`
+	TeamData        []any            `json:"team,omitempty"`             // only sending to admin
+	ParticipantData []map[string]any `json:"participant_data,omitempty"` // only sending to admin
+	AnswerData      map[string]any   `json:"answer_data,omitempty"`      // user_id(string) -> answer_index
 	// SyncVersion     int             `json:"sync_version"`
 	// Timestamp       time.Time       `json:"timestamp"`
 }
@@ -401,9 +401,9 @@ func (h *Hub) handleStateSyncRequest(request *StateSyncRequest) {
 			reducedEventState.ParticipantData = nil
 			// reducedEventState.AnswerData から該当ユーザーのみのデータに絞る
 			// FIXME:
-			for k, v := range h.LastEventState.ParticipantData {
-				if k == request.Client.UserID {
-					reducedEventState.ParticipantData[k] = v
+			for _, v := range h.LastEventState.ParticipantData {
+				if v["id"] == request.Client.UserID {
+					reducedEventState.ParticipantData = append(reducedEventState.ParticipantData, v)
 				}
 			}
 		case ClientTypeScreen:

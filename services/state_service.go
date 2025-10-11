@@ -349,7 +349,7 @@ func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
 
 	// Add participant data for admin visibility
 	if users, err := ss.userRepo.GetAllUsers(); err == nil {
-		participantData := make([]any, len(users))
+		participantData := make([]map[string]any, len(users))
 		for i, user := range users {
 			participantData[i] = map[string]any{
 				"id":        user.ID,

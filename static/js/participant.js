@@ -1,925 +1,981 @@
 class QuizParticipant {
-    constructor() {
-        this.ws = null;
-        this.sessionID = localStorage.getItem('quiz_session_id') || null;
-        this.user = null;
-        this.currentQuestion = null;
-        this.selectedAnswer = null;
-        this.lastTouchEnd = 0;
-        this.answersBlocked = false;
-        this.answerRevealed = false;
-        this.currentEventState = null;
+  constructor() {
+    this.ws = null;
+    this.sessionID = localStorage.getItem('quiz_session_id') || null;
+    this.user = null;
+    this.currentQuestion = null;
+    this.selectedAnswer = null;
+    this.lastTouchEnd = 0;
+    this.answersBlocked = false;
+    this.answerRevealed = false;
+    this.currentEventState = null;
 
-        this.initializeElements();
-        this.setupEventListeners();
-        this.preventZoom();
-        
-        if (this.sessionID) {
-            this.rejoinSession();
+    this.initializeElements();
+    this.setupEventListeners();
+    this.preventZoom();
+
+    if (this.sessionID) {
+      this.rejoinSession();
+    }
+  }
+
+  initializeElements() {
+    this.elements = {
+      connectionStatus: document.getElementById('connection-status'),
+      connectionText: document.getElementById('connection-text'),
+      connectionUsername: document.getElementById('connection-username'),
+
+      resetSessionBtn: document.getElementById('reset-session-btn'),
+      resetModal: document.getElementById('reset-modal'),
+      resetCancelBtn: document.getElementById('reset-cancel-btn'),
+      resetConfirmBtn: document.getElementById('reset-confirm-btn'),
+
+      joinSection: document.getElementById('join-section'),
+      nickname: document.getElementById('nickname'),
+      joinBtn: document.getElementById('join-btn'),
+
+      waitingSection: document.getElementById('waiting-section'),
+      userNickname: document.getElementById('user-nickname'),
+      userScore: document.getElementById('user-score'),
+
+      questionSection: document.getElementById('question-section'),
+      currentQuestionNum: document.getElementById('current-question-num'),
+      // totalQuestions: document.getElementById('total-questions'),
+      questionText: document.getElementById('question-text'),
+      questionImage: document.getElementById('question-image'),
+      choicesContainer: document.getElementById('choices-container'),
+      currentScore: document.getElementById('current-score'),
+
+      answerFeedback: document.getElementById('answer-feedback'),
+      feedbackText: document.getElementById('feedback-text'),
+
+      resultsSection: document.getElementById('results-section'),
+      // finalScore: document.getElementById('final-score'),
+      rankings: document.getElementById('rankings'),
+
+      emojiButtons: document.querySelectorAll('.emoji-btn'),
+    };
+  }
+
+  setupEventListeners() {
+    this.elements.joinBtn.addEventListener('click', () => this.joinQuiz());
+    this.elements.nickname.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') this.joinQuiz();
+    });
+
+    this.elements.emojiButtons.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const emoji = btn.dataset.emoji;
+        this.sendEmoji(emoji);
+        this.animateEmojiButton(btn);
+      });
+
+      // Touch feedback for mobile
+      btn.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault();
+          btn.style.transform = 'scale(0.95)';
+        },
+        { passive: false }
+      );
+
+      btn.addEventListener(
+        'touchend',
+        (e) => {
+          e.preventDefault();
+          btn.style.transform = 'scale(1)';
+          const emoji = btn.dataset.emoji;
+          this.sendEmoji(emoji);
+          this.animateEmojiButton(btn);
+        },
+        { passive: false }
+      );
+    });
+
+    // セッション破棄関連のイベントリスナー
+    this.elements.resetSessionBtn.addEventListener('click', () =>
+      this.showResetModal()
+    );
+    this.elements.resetCancelBtn.addEventListener('click', () =>
+      this.hideResetModal()
+    );
+    this.elements.resetConfirmBtn.addEventListener('click', () =>
+      this.resetSession()
+    );
+
+    // モーダルのオーバーレイクリックで閉じる
+    this.elements.resetModal.addEventListener('click', (e) => {
+      if (e.target === this.elements.resetModal) {
+        this.hideResetModal();
+      }
+    });
+  }
+
+  connectWebSocket() {
+    if (!this.sessionID) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/participant?session_id=${this.sessionID}`;
+
+    this.ws = new WebSocket(wsUrl);
+
+    this.ws.onopen = () => {
+      console.log('WebSocket connected');
+      this.updateConnectionStatus(true);
+    };
+
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      this.handleWebSocketMessage(message);
+    };
+
+    this.ws.onclose = () => {
+      console.log('WebSocket disconnected');
+      this.updateConnectionStatus(false);
+      setTimeout(() => this.connectWebSocket(), 3000);
+    };
+
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      this.updateConnectionStatus(false);
+    };
+  }
+
+  handleWebSocketMessage(message) {
+    console.log('Received message:', message);
+
+    switch (message.type) {
+      case 'event_started':
+        this.showWaiting();
+        break;
+
+      case 'question_start':
+        this.showQuestion(message.data.question, message.data.question_number);
+        break;
+
+      case 'question_end':
+        this.blockAnswers();
+        break;
+
+      case 'time_alert': // FIXME: 消したい
+        break;
+
+      case 'answer_reveal':
+        this.answerRevealed = true;
+        if (message.data && message.data.correct !== undefined) {
+          this.showCorrectAnswer(message.data.correct);
         }
+        break;
+
+      case 'final_results':
+        this.showResults(message.data);
+        break;
+
+      case 'team_member_added':
+        break;
+
+      case 'state_changed':
+        this.handleStateChanged(message.data);
+        break;
+
+      case 'ping':
+        this.handlePing(message.data);
+        break;
+
+      case 'initial_sync':
+        this.handleInitialSync(message.data);
+        break;
+
+      case 'state_sync':
+        this.handleStateSync(message.data);
+        break;
+
+      default:
+        console.log('Unknown message type:', message.type);
+    }
+  }
+
+  async joinQuiz() {
+    const nickname = this.elements.nickname.value.trim();
+    if (!nickname) {
+      this.showMessage('ニックネームを入力してください');
+      return;
     }
 
-    initializeElements() {
-        this.elements = {
-            connectionStatus: document.getElementById('connection-status'),
-            connectionText: document.getElementById('connection-text'),
-            connectionUsername: document.getElementById('connection-username'),
-
-            resetSessionBtn: document.getElementById('reset-session-btn'),
-            resetModal: document.getElementById('reset-modal'),
-            resetCancelBtn: document.getElementById('reset-cancel-btn'),
-            resetConfirmBtn: document.getElementById('reset-confirm-btn'),
-            
-            joinSection: document.getElementById('join-section'),
-            nickname: document.getElementById('nickname'),
-            joinBtn: document.getElementById('join-btn'),
-            
-            waitingSection: document.getElementById('waiting-section'),
-            userNickname: document.getElementById('user-nickname'),
-            userScore: document.getElementById('user-score'),
-            
-            questionSection: document.getElementById('question-section'),
-            currentQuestionNum: document.getElementById('current-question-num'),
-            // totalQuestions: document.getElementById('total-questions'),
-            questionText: document.getElementById('question-text'),
-            questionImage: document.getElementById('question-image'),
-            choicesContainer: document.getElementById('choices-container'),
-            currentScore: document.getElementById('current-score'),
-            
-            answerFeedback: document.getElementById('answer-feedback'),
-            feedbackText: document.getElementById('feedback-text'),
-            
-            resultsSection: document.getElementById('results-section'),
-            // finalScore: document.getElementById('final-score'),
-            rankings: document.getElementById('rankings'),
-            
-            emojiButtons: document.querySelectorAll('.emoji-btn')
-        };
+    if (nickname.length > 20) {
+      this.showMessage('ニックネームは20文字以内で入力してください');
+      return;
     }
 
-    setupEventListeners() {
-        this.elements.joinBtn.addEventListener('click', () => this.joinQuiz());
-        this.elements.nickname.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.joinQuiz();
-        });
+    this.elements.joinBtn.disabled = true;
+    this.elements.joinBtn.textContent = '参加中...';
 
-        this.elements.emojiButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const emoji = btn.dataset.emoji;
-                this.sendEmoji(emoji);
-                this.animateEmojiButton(btn);
-            });
-            
-            // Touch feedback for mobile
-            btn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                btn.style.transform = 'scale(0.95)';
-            }, { passive: false });
-            
-            btn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                btn.style.transform = 'scale(1)';
-                const emoji = btn.dataset.emoji;
-                this.sendEmoji(emoji);
-                this.animateEmojiButton(btn);
-            }, { passive: false });
-        });
+    // Hide mobile keyboard
+    this.elements.nickname.blur();
 
-        // セッション破棄関連のイベントリスナー
-        this.elements.resetSessionBtn.addEventListener('click', () => this.showResetModal());
-        this.elements.resetCancelBtn.addEventListener('click', () => this.hideResetModal());
-        this.elements.resetConfirmBtn.addEventListener('click', () => this.resetSession());
-        
-        // モーダルのオーバーレイクリックで閉じる
-        this.elements.resetModal.addEventListener('click', (e) => {
-            if (e.target === this.elements.resetModal) {
-                this.hideResetModal();
-            }
-        });
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      if (this.sessionID) {
+        headers['X-Session-ID'] = this.sessionID;
+      }
+
+      const response = await fetch('/api/join', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ nickname: nickname }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        this.user = data.user;
+        this.sessionID = data.session_id;
+        localStorage.setItem('quiz_session_id', this.sessionID);
+
+        this.elements.userNickname.textContent = this.user.nickname;
+        this.elements.userScore.textContent = this.user.score;
+        this.elements.currentScore.textContent = this.user.score;
+
+        this.showWaiting();
+        this.connectWebSocket();
+      } else {
+        throw new Error(data.error || 'Failed to join quiz');
+      }
+    } catch (error) {
+      console.error('Error joining quiz:', error);
+      this.showMessage('参加に失敗しました: ' + error.message);
+    } finally {
+      this.elements.joinBtn.disabled = false;
+      this.elements.joinBtn.textContent = '参加する';
+    }
+  }
+
+  async rejoinSession() {
+    try {
+      const response = await fetch('/api/join', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': this.sessionID,
+        },
+        body: JSON.stringify({ nickname: 'Rejoining...' }),
+      });
+
+      // Check response status first
+      if (!response.ok) {
+        console.warn('Rejoin failed with status:', response.status);
+        localStorage.removeItem('quiz_session_id');
+        this.sessionID = null;
+        this.showJoinScreen();
+        return;
+      }
+
+      // Get response text first to debug JSON parsing issues
+      const responseText = await response.text();
+      console.log('Rejoin response text:', responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('Response text was:', responseText);
+        localStorage.removeItem('quiz_session_id');
+        this.sessionID = null;
+        this.showJoinScreen();
+        return;
+      }
+
+      if (data.user) {
+        this.user = data.user;
+        this.elements.userNickname.textContent = this.user.nickname;
+        this.elements.userScore.textContent = this.user.score;
+        this.elements.currentScore.textContent = this.user.score;
+
+        this.showWaiting();
+        this.connectWebSocket();
+      } else {
+        // No user data, clear session and show join screen
+        console.warn('No user data in rejoin response');
+        localStorage.removeItem('quiz_session_id');
+        this.sessionID = null;
+        this.showJoinScreen();
+      }
+    } catch (error) {
+      console.error('Error rejoining:', error);
+      localStorage.removeItem('quiz_session_id');
+      this.sessionID = null;
+      this.showJoinScreen();
+    }
+  }
+
+  showJoinScreen() {
+    this.hideAllSections();
+    this.elements.joinSection.classList.remove('hidden');
+    this.elements.nickname.value = ''; // Clear nickname field
+    this.elements.nickname.focus(); // Focus on nickname input
+  }
+
+  showWaiting() {
+    this.hideAllSections();
+    this.elements.waitingSection.classList.remove('hidden');
+  }
+
+  showQuestion(questionData, questionNumber) {
+    this.currentQuestion = questionData;
+    this.currentQuestion.question_number = questionNumber;
+    this.selectedAnswer = null;
+    this.answersBlocked = false;
+    this.answerRevealed = false;
+
+    this.hideAllSections();
+    this.elements.questionSection.classList.remove('hidden');
+
+    this.elements.currentQuestionNum.textContent = questionNumber;
+    // this.elements.totalQuestions.textContent = questionData.total_questions;
+    this.elements.questionText.textContent = questionData.text;
+
+    if (questionData.image) {
+      this.elements.questionImage.src = `/images/${questionData.image}`;
+      this.elements.questionImage.classList.remove('hidden');
+    } else {
+      this.elements.questionImage.classList.add('hidden');
     }
 
-    connectWebSocket() {
-        if (!this.sessionID) return;
+    this.renderChoices(questionData.choices);
+  }
 
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws/participant?session_id=${this.sessionID}`;
-        
-        this.ws = new WebSocket(wsUrl);
-        
-        this.ws.onopen = () => {
-            console.log('WebSocket connected');
-            this.updateConnectionStatus(true);
-        };
-        
-        this.ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            this.handleWebSocketMessage(message);
-        };
-        
-        this.ws.onclose = () => {
-            console.log('WebSocket disconnected');
-            this.updateConnectionStatus(false);
-            setTimeout(() => this.connectWebSocket(), 3000);
-        };
-        
-        this.ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            this.updateConnectionStatus(false);
-        };
+  renderChoices(choices) {
+    this.elements.choicesContainer.innerHTML = '';
+
+    choices.forEach((choice, index) => {
+      const button = document.createElement('button');
+      button.className = 'choice-btn';
+      button.textContent = `${String.fromCharCode(65 + index)}. ${choice}`;
+
+      // Standard click event
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.selectAnswer(index);
+      });
+
+      // Touch events for better mobile experience
+      button.addEventListener(
+        'touchstart',
+        (e) => {
+          if (this.answersBlocked) return;
+          button.style.backgroundColor = '#f0f8ff';
+        },
+        { passive: true }
+      );
+
+      button.addEventListener(
+        'touchend',
+        (e) => {
+          e.preventDefault();
+          if (this.answersBlocked) return;
+          button.style.backgroundColor = '';
+          this.selectAnswer(index);
+        },
+        { passive: false }
+      );
+
+      button.addEventListener('touchcancel', (e) => {
+        button.style.backgroundColor = '';
+      });
+
+      this.elements.choicesContainer.appendChild(button);
+    });
+  }
+
+  async selectAnswer(answerIndex) {
+    if (this.answersBlocked) return;
+
+    // 正答発表後の回答は禁止
+    if (this.answerRevealed) {
+      this.showMessage('この問題はすでに正答が発表されています。');
+      return;
     }
 
-    handleWebSocketMessage(message) {
-        console.log('Received message:', message);
-        
-        switch (message.type) {
-            case 'event_started':
-                this.showWaiting();
-                break;
-                
-            case 'question_start':
-                this.showQuestion(message.data);
-                break;
-                
-            case 'question_end':
-                this.blockAnswers();
-                break;
-                
-            case 'time_alert': // FIXME: 消したい
-                break;
-                
-            case 'answer_reveal':
-                this.answerRevealed = true;
-                if (message.data && message.data.correct !== undefined) {
-                    this.showCorrectAnswer(message.data.correct);
-                }
-                break;
-                
-            case 'final_results':
-                this.showResults(message.data);
-                break;
+    // Clear previous selection highlighting
+    this.clearSelectionHighlight();
 
-            case 'team_member_added':
-                break;
-                
-            case 'state_changed':
-                this.handleStateChanged(message.data);
-                break;
+    // Highlight the selected answer
+    this.selectedAnswer = answerIndex;
+    this.highlightSelectedAnswer(answerIndex);
 
-            case 'ping':
-                this.handlePing(message.data);
-                break;
+    try {
+      const response = await fetch('/api/answer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': this.sessionID,
+        },
+        body: JSON.stringify({
+          question_number: this.currentQuestion.question_number,
+          answer_index: answerIndex + 1, // Convert 0-based to 1-based
+        }),
+      });
 
-            case 'initial_sync':
-                this.handleInitialSync(message.data);
-                break;
+      const data = await response.json();
 
-            case 'state_sync':
-                this.handleStateSync(message.data);
-                break;
-
-            default:
-                console.log('Unknown message type:', message.type);
+      if (response.ok) {
+        // サーバーから返された選択肢でハイライトを更新
+        if (data.answer_index !== undefined) {
+          this.selectedAnswer = data.answer_index - 1; // Convert 1-based to 0-based
+          this.clearSelectionHighlight();
+          this.highlightSelectedAnswer(this.selectedAnswer);
         }
-    }
-
-    async joinQuiz() {
-        const nickname = this.elements.nickname.value.trim();
-        if (!nickname) {
-            this.showMessage('ニックネームを入力してください');
-            return;
+      } else {
+        // 「Already answered this question」エラーは無視（回答変更として扱う）
+        if (data.error && !data.error.includes('Already answered')) {
+          console.error('Error submitting answer:', data.error);
+          this.showMessage('回答の送信に失敗しました: ' + data.error);
         }
-
-        if (nickname.length > 20) {
-            this.showMessage('ニックネームは20文字以内で入力してください');
-            return;
-        }
-
-        this.elements.joinBtn.disabled = true;
-        this.elements.joinBtn.textContent = '参加中...';
-        
-        // Hide mobile keyboard
-        this.elements.nickname.blur();
-
-        try {
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-            
-            if (this.sessionID) {
-                headers['X-Session-ID'] = this.sessionID;
-            }
-
-            const response = await fetch('/api/join', {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify({ nickname: nickname })
-            });
-
-            const data = await response.json();
-            
-            if (response.ok) {
-                this.user = data.user;
-                this.sessionID = data.session_id;
-                localStorage.setItem('quiz_session_id', this.sessionID);
-                
-                this.elements.userNickname.textContent = this.user.nickname;
-                this.elements.userScore.textContent = this.user.score;
-                this.elements.currentScore.textContent = this.user.score;
-                
-                this.showWaiting();
-                this.connectWebSocket();
-            } else {
-                throw new Error(data.error || 'Failed to join quiz');
-            }
-        } catch (error) {
-            console.error('Error joining quiz:', error);
-            this.showMessage('参加に失敗しました: ' + error.message);
-        } finally {
-            this.elements.joinBtn.disabled = false;
-            this.elements.joinBtn.textContent = '参加する';
-        }
+        // Already answered エラーの場合は何もしない（回答変更として正常動作）
+      }
+    } catch (error) {
+      console.error('Error submitting answer:', error);
+      this.showMessage('回答の送信中にエラーが発生しました。');
     }
+  }
 
-    async rejoinSession() {
-        try {
-            const response = await fetch('/api/join', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Session-ID': this.sessionID
-                },
-                body: JSON.stringify({ nickname: 'Rejoining...' })
-            });
+  disableChoices() {
+    const choices =
+      this.elements.choicesContainer.querySelectorAll('.choice-btn');
+    choices.forEach((btn) => (btn.disabled = true));
+  }
 
-            // Check response status first
-            if (!response.ok) {
-                console.warn('Rejoin failed with status:', response.status);
-                localStorage.removeItem('quiz_session_id');
-                this.sessionID = null;
-                this.showJoinScreen();
-                return;
-            }
+  enableChoices() {
+    const choices =
+      this.elements.choicesContainer.querySelectorAll('.choice-btn');
+    choices.forEach((btn) => (btn.disabled = false));
+  }
 
-            // Get response text first to debug JSON parsing issues
-            const responseText = await response.text();
-            console.log('Rejoin response text:', responseText);
+  blockAnswers() {
+    this.answersBlocked = true;
+    this.disableChoices();
+  }
 
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (parseError) {
-                console.error('JSON parse error:', parseError);
-                console.error('Response text was:', responseText);
-                localStorage.removeItem('quiz_session_id');
-                this.sessionID = null;
-                this.showJoinScreen();
-                return;
-            }
+  clearSelectionHighlight() {
+    const choices =
+      this.elements.choicesContainer.querySelectorAll('.choice-btn');
+    choices.forEach((btn) => {
+      btn.classList.remove('selected', 'correct-answer');
+    });
+  }
 
-            if (data.user) {
-                this.user = data.user;
-                this.elements.userNickname.textContent = this.user.nickname;
-                this.elements.userScore.textContent = this.user.score;
-                this.elements.currentScore.textContent = this.user.score;
-
-                this.showWaiting();
-                this.connectWebSocket();
-            } else {
-                // No user data, clear session and show join screen
-                console.warn('No user data in rejoin response');
-                localStorage.removeItem('quiz_session_id');
-                this.sessionID = null;
-                this.showJoinScreen();
-            }
-        } catch (error) {
-            console.error('Error rejoining:', error);
-            localStorage.removeItem('quiz_session_id');
-            this.sessionID = null;
-            this.showJoinScreen();
-        }
+  highlightSelectedAnswer(answerIndex) {
+    const choices =
+      this.elements.choicesContainer.querySelectorAll('.choice-btn');
+    if (choices[answerIndex]) {
+      choices[answerIndex].classList.add('selected');
     }
+  }
 
-    showJoinScreen() {
-        this.hideAllSections();
-        this.elements.joinSection.classList.remove('hidden');
-        this.elements.nickname.value = ''; // Clear nickname field
-        this.elements.nickname.focus(); // Focus on nickname input
+  showCorrectAnswer(correctIndex) {
+    const choices =
+      this.elements.choicesContainer.querySelectorAll('.choice-btn');
+    if (choices[correctIndex - 1]) {
+      choices[correctIndex - 1].classList.add('correct-answer');
     }
+  }
 
-    showWaiting() {
-        this.hideAllSections();
-        this.elements.waitingSection.classList.remove('hidden');
-    }
+  showFeedback(isCorrect) {
+    // Remove immediate feedback display - feedback only shown during answer reveal
+    // this.elements.feedbackText.textContent = isCorrect ? '正解！ 🎉' : '不正解 😔';
+    // this.elements.answerFeedback.className = `feedback ${isCorrect ? 'correct' : 'incorrect'}`;
+    // this.elements.answerFeedback.classList.remove('hidden');
+    // setTimeout(() => {
+    //     this.elements.answerFeedback.classList.add('hidden');
+    // }, 2000);
+  }
 
-    showQuestion(questionData) {
-        this.currentQuestion = questionData;
-        this.selectedAnswer = null;
-        this.answersBlocked = false;
-        this.answerRevealed = false;
-        
-        this.hideAllSections();
-        this.elements.questionSection.classList.remove('hidden');
-        
-        this.elements.currentQuestionNum.textContent = questionData.question_number;
-        // this.elements.totalQuestions.textContent = questionData.total_questions;
-        this.elements.questionText.textContent = questionData.question.text;
-        
-        if (questionData.question.image) {
-            this.elements.questionImage.src = `/images/${questionData.question.image}`;
-            this.elements.questionImage.classList.remove('hidden');
-        } else {
-            this.elements.questionImage.classList.add('hidden');
-        }
-        
-        this.renderChoices(questionData.question.choices);
-    }
+  showResults(resultsData) {
+    this.hideAllSections();
+    this.elements.resultsSection.classList.remove('hidden');
 
-    renderChoices(choices) {
-        this.elements.choicesContainer.innerHTML = '';
-        
-        choices.forEach((choice, index) => {
-            const button = document.createElement('button');
-            button.className = 'choice-btn';
-            button.textContent = `${String.fromCharCode(65 + index)}. ${choice}`;
-            
-            // Standard click event
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.selectAnswer(index);
-            });
-            
-            // Touch events for better mobile experience
-            button.addEventListener('touchstart', (e) => {
-                if (this.answersBlocked) return;
-                button.style.backgroundColor = '#f0f8ff';
-            }, { passive: true });
-            
-            button.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                if (this.answersBlocked) return;
-                button.style.backgroundColor = '';
-                this.selectAnswer(index);
-            }, { passive: false });
-            
-            button.addEventListener('touchcancel', (e) => {
-                button.style.backgroundColor = '';
-            });
-            
-            this.elements.choicesContainer.appendChild(button);
-        });
+    if (resultsData.team_mode && resultsData.teams) {
+      // チーム戦の場合はチーム結果のみ表示
+      // this.elements.finalScore.textContent = `チーム戦結果`;
+      this.renderTeamRankings(resultsData.teams);
+    } else {
+      // 個人戦の場合は従来通り
+      // this.elements.finalScore.textContent = `あなたのスコア: ${this.user.score}点`;
+      this.renderRankings(resultsData.results);
     }
+  }
 
-    async selectAnswer(answerIndex) {
-        if (this.answersBlocked) return;
-        
-        // 正答発表後の回答は禁止
-        if (this.answerRevealed) {
-            this.showMessage('この問題はすでに正答が発表されています。');
-            return;
-        }
-        
-        // Clear previous selection highlighting
-        this.clearSelectionHighlight();
-        
-        // Highlight the selected answer
-        this.selectedAnswer = answerIndex;
-        this.highlightSelectedAnswer(answerIndex);
-        
-        try {
-            const response = await fetch('/api/answer', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Session-ID': this.sessionID
-                },
-                body: JSON.stringify({
-                    question_number: this.currentQuestion.question_number,
-                    answer_index: answerIndex + 1  // Convert 0-based to 1-based
-                })
-            });
+  renderRankings(results) {
+    results.sort((a, b) => b.score - a.score);
 
-            const data = await response.json();
+    this.elements.rankings.innerHTML = '';
 
-            if (response.ok) {
-                // サーバーから返された選択肢でハイライトを更新
-                if (data.answer_index !== undefined) {
-                    this.selectedAnswer = data.answer_index - 1; // Convert 1-based to 0-based
-                    this.clearSelectionHighlight();
-                    this.highlightSelectedAnswer(this.selectedAnswer);
-                }
-            } else {
-                // 「Already answered this question」エラーは無視（回答変更として扱う）
-                if (data.error && !data.error.includes('Already answered')) {
-                    console.error('Error submitting answer:', data.error);
-                    this.showMessage('回答の送信に失敗しました: ' + data.error);
-                }
-                // Already answered エラーの場合は何もしない（回答変更として正常動作）
-            }
-        } catch (error) {
-            console.error('Error submitting answer:', error);
-            this.showMessage('回答の送信中にエラーが発生しました。');
-        }
-    }
+    results.forEach((user, index) => {
+      const item = document.createElement('div');
+      item.className = 'ranking-item';
 
-    disableChoices() {
-        const choices = this.elements.choicesContainer.querySelectorAll('.choice-btn');
-        choices.forEach(btn => btn.disabled = true);
-    }
+      const isCurrentUser = user.id === this.user.id;
+      if (isCurrentUser) {
+        item.style.backgroundColor = '#f0f8ff';
+        item.style.fontWeight = 'bold';
+      }
 
-    enableChoices() {
-        const choices = this.elements.choicesContainer.querySelectorAll('.choice-btn');
-        choices.forEach(btn => btn.disabled = false);
-    }
-    
-    blockAnswers() {
-        this.answersBlocked = true;
-        this.disableChoices();
-    }
-    
-    clearSelectionHighlight() {
-        const choices = this.elements.choicesContainer.querySelectorAll('.choice-btn');
-        choices.forEach(btn => {
-            btn.classList.remove('selected', 'correct-answer');
-        });
-    }
-    
-    highlightSelectedAnswer(answerIndex) {
-        const choices = this.elements.choicesContainer.querySelectorAll('.choice-btn');
-        if (choices[answerIndex]) {
-            choices[answerIndex].classList.add('selected');
-        }
-    }
-    
-    showCorrectAnswer(correctIndex) {
-        const choices = this.elements.choicesContainer.querySelectorAll('.choice-btn');
-        if (choices[correctIndex]) {
-            choices[correctIndex].classList.add('correct-answer');
-        }
-    }
-
-    showFeedback(isCorrect) {
-        // Remove immediate feedback display - feedback only shown during answer reveal
-        // this.elements.feedbackText.textContent = isCorrect ? '正解！ 🎉' : '不正解 😔';
-        // this.elements.answerFeedback.className = `feedback ${isCorrect ? 'correct' : 'incorrect'}`;
-        // this.elements.answerFeedback.classList.remove('hidden');
-        
-        // setTimeout(() => {
-        //     this.elements.answerFeedback.classList.add('hidden');
-        // }, 2000);
-    }
-
-    showResults(resultsData) {
-        this.hideAllSections();
-        this.elements.resultsSection.classList.remove('hidden');
-        
-        if (resultsData.team_mode && resultsData.teams) {
-            // チーム戦の場合はチーム結果のみ表示
-            // this.elements.finalScore.textContent = `チーム戦結果`;
-            this.renderTeamRankings(resultsData.teams);
-        } else {
-            // 個人戦の場合は従来通り
-            // this.elements.finalScore.textContent = `あなたのスコア: ${this.user.score}点`;
-            this.renderRankings(resultsData.results);
-        }
-    }
-
-    renderRankings(results) {
-        results.sort((a, b) => b.score - a.score);
-        
-        this.elements.rankings.innerHTML = '';
-        
-        results.forEach((user, index) => {
-            const item = document.createElement('div');
-            item.className = 'ranking-item';
-            
-            const isCurrentUser = user.id === this.user.id;
-            if (isCurrentUser) {
-                item.style.backgroundColor = '#f0f8ff';
-                item.style.fontWeight = 'bold';
-            }
-            
-            item.innerHTML = `
+      item.innerHTML = `
                 <span class="rank">${index + 1}位</span>
                 <span class="name">${user.nickname}</span>
                 <span class="score">${user.score}点</span>
             `;
-            
-            this.elements.rankings.appendChild(item);
-        });
+
+      this.elements.rankings.appendChild(item);
+    });
+  }
+
+  renderTeamRankings(teams) {
+    // チームを得点順にソート
+    teams.sort((a, b) => b.score - a.score);
+
+    this.elements.rankings.innerHTML = '';
+
+    // 現在のユーザーが所属するチームを特定
+    let userTeamId = null;
+    if (this.user) {
+      for (const team of teams) {
+        if (
+          team.members &&
+          team.members.some((member) => member.id === this.user.id)
+        ) {
+          userTeamId = team.id;
+          break;
+        }
+      }
     }
 
-    renderTeamRankings(teams) {
-        // チームを得点順にソート
-        teams.sort((a, b) => b.score - a.score);
-        
-        this.elements.rankings.innerHTML = '';
-        
-        // 現在のユーザーが所属するチームを特定
-        let userTeamId = null;
-        if (this.user) {
-            for (const team of teams) {
-                if (team.members && team.members.some(member => member.id === this.user.id)) {
-                    userTeamId = team.id;
-                    break;
-                }
-            }
-        }
-        
-        teams.forEach((team, index) => {
-            const teamItem = document.createElement('div');
-            teamItem.className = 'team-ranking-item';
-            
-            // 自分のチームをハイライト
-            const isUserTeam = team.id === userTeamId;
-            if (isUserTeam) {
-                teamItem.style.backgroundColor = '#f0f8ff';
-                teamItem.style.fontWeight = 'bold';
-                teamItem.style.border = '2px solid #007bff';
-            }
-            
-            // チーム情報のヘッダー
-            const teamHeader = document.createElement('div');
-            teamHeader.className = 'team-header';
-            teamHeader.innerHTML = `
+    teams.forEach((team, index) => {
+      const teamItem = document.createElement('div');
+      teamItem.className = 'team-ranking-item';
+
+      // 自分のチームをハイライト
+      const isUserTeam = team.id === userTeamId;
+      if (isUserTeam) {
+        teamItem.style.backgroundColor = '#f0f8ff';
+        teamItem.style.fontWeight = 'bold';
+        teamItem.style.border = '2px solid #007bff';
+      }
+
+      // チーム情報のヘッダー
+      const teamHeader = document.createElement('div');
+      teamHeader.className = 'team-header';
+      teamHeader.innerHTML = `
                 <span class="rank">${index + 1}位</span>
                 <!-- <span class="team-name">【${team.name}】</span> -->
                 <span class="team-score">${team.score}点</span>
             `;
-            teamItem.appendChild(teamHeader);
-            
-            // チームメンバーの詳細
-            if (team.members && team.members.length > 0) {
-                const membersDiv = document.createElement('div');
-                membersDiv.className = 'team-members';
-                
-                team.members.forEach(member => {
-                    const memberDiv = document.createElement('div');
-                    memberDiv.className = 'team-member';
-                    
-                    // 自分自身をハイライト
-                    const isCurrentUser = member.id === this.user.id;
-                    if (isCurrentUser) {
-                        memberDiv.style.backgroundColor = '#e6f3ff';
-                        memberDiv.style.fontWeight = 'bold';
-                    }
-                    
-                    memberDiv.innerHTML = `
+      teamItem.appendChild(teamHeader);
+
+      // チームメンバーの詳細
+      if (team.members && team.members.length > 0) {
+        const membersDiv = document.createElement('div');
+        membersDiv.className = 'team-members';
+
+        team.members.forEach((member) => {
+          const memberDiv = document.createElement('div');
+          memberDiv.className = 'team-member';
+
+          // 自分自身をハイライト
+          const isCurrentUser = member.id === this.user.id;
+          if (isCurrentUser) {
+            memberDiv.style.backgroundColor = '#e6f3ff';
+            memberDiv.style.fontWeight = 'bold';
+          }
+
+          memberDiv.innerHTML = `
                         <span class="member-name">${member.nickname}</span>
                         <span class="member-score">${member.score}点</span>
                     `;
-                    
-                    membersDiv.appendChild(memberDiv);
-                });
-                
-                teamItem.appendChild(membersDiv);
-            }
-            
-            this.elements.rankings.appendChild(teamItem);
+
+          membersDiv.appendChild(memberDiv);
         });
+
+        teamItem.appendChild(membersDiv);
+      }
+
+      this.elements.rankings.appendChild(teamItem);
+    });
+  }
+
+  async sendEmoji(emoji) {
+    if (!this.sessionID) return;
+
+    try {
+      await fetch('/api/emoji', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': this.sessionID,
+        },
+        body: JSON.stringify({ emoji: emoji }),
+      });
+    } catch (error) {
+      console.error('Error sending emoji:', error);
+    }
+  }
+
+  animateEmojiButton(button) {
+    button.style.transform = 'scale(1.2)';
+    setTimeout(() => {
+      button.style.transform = 'scale(1)';
+    }, 200);
+  }
+
+  hideAllSections() {
+    this.elements.joinSection.classList.add('hidden');
+    this.elements.waitingSection.classList.add('hidden');
+    this.elements.questionSection.classList.add('hidden');
+    this.elements.resultsSection.classList.add('hidden');
+  }
+
+  showResetModal() {
+    this.elements.resetModal.classList.remove('hidden');
+  }
+
+  hideResetModal() {
+    this.elements.resetModal.classList.add('hidden');
+  }
+
+  async resetSession() {
+    if (!this.sessionID) {
+      this.showMessage('セッションが見つかりません');
+      return;
     }
 
-    async sendEmoji(emoji) {
-        if (!this.sessionID) return;
-        
-        try {
-            await fetch('/api/emoji', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Session-ID': this.sessionID
-                },
-                body: JSON.stringify({ emoji: emoji })
-            });
-        } catch (error) {
-            console.error('Error sending emoji:', error);
-        }
-    }
+    try {
+      const response = await fetch('/api/reset-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': this.sessionID,
+        },
+      });
 
-    animateEmojiButton(button) {
-        button.style.transform = 'scale(1.2)';
-        setTimeout(() => {
-            button.style.transform = 'scale(1)';
-        }, 200);
-    }
+      if (response.ok) {
+        // セッション情報をクリア
+        localStorage.removeItem('quiz_session_id');
+        this.sessionID = null;
+        this.user = null;
 
-    hideAllSections() {
-        this.elements.joinSection.classList.add('hidden');
-        this.elements.waitingSection.classList.add('hidden');
-        this.elements.questionSection.classList.add('hidden');
-        this.elements.resultsSection.classList.add('hidden');
-    }
-
-    showResetModal() {
-        this.elements.resetModal.classList.remove('hidden');
-    }
-
-    hideResetModal() {
-        this.elements.resetModal.classList.add('hidden');
-    }
-
-    async resetSession() {
-        if (!this.sessionID) {
-            this.showMessage('セッションが見つかりません');
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/reset-session', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Session-ID': this.sessionID
-                }
-            });
-
-            if (response.ok) {
-                // セッション情報をクリア
-                localStorage.removeItem('quiz_session_id');
-                this.sessionID = null;
-                this.user = null;
-                
-                // WebSocket接続を切断
-                if (this.ws) {
-                    this.ws.close();
-                    this.ws = null;
-                }
-                
-                // モーダルを閉じる
-                this.hideResetModal();
-                
-                // 参加登録画面に戻る
-                this.hideAllSections();
-                this.elements.joinSection.classList.remove('hidden');
-                this.elements.nickname.value = '';
-                
-                // 接続状態をリセット
-                this.updateConnectionStatus(false);
-                
-                this.showMessage('セッションが破棄されました。再度参加登録を行ってください。');
-            } else {
-                const error = await response.json();
-                this.showMessage(`セッション破棄に失敗しました: ${error.error}`);
-            }
-        } catch (error) {
-            console.error('Reset session error:', error);
-            this.showMessage('セッション破棄中にエラーが発生しました');
-        }
-    }
-
-    handleStateChanged(data) {
-        console.log('State changed:', data.new_state);
-        
-        // Handle state-specific transitions using constants
-        const { EVENT_STATES } = QuizConstants;
-        
-        switch (data.new_state) {
-            case EVENT_STATES.WAITING:
-            case EVENT_STATES.STARTED:
-            case EVENT_STATES.TITLE_DISPLAY:
-            case EVENT_STATES.TEAM_ASSIGNMENT:
-                // Show waiting screen for these states
-                if (this.user) {
-                    this.showWaiting();
-                }
-                break;
-                
-            case EVENT_STATES.QUESTION_ACTIVE:
-                // Show question if data is provided
-                if (data.question && data.question_number) {
-                    const questionData = {
-                        question_number: data.question_number,
-                        question: data.question,
-                        total_questions: data.total_questions
-                    };
-                    this.showQuestion(questionData);
-                } else {
-                    // Keep current state if no question data
-                    console.log('Question active state but no question data provided');
-                }
-                break;
-                
-            case EVENT_STATES.COUNTDOWN_ACTIVE:
-                // カウントダウン中は回答可能（カウントダウン終了時にブロックされる）
-                break;
-                
-            case EVENT_STATES.ANSWER_STATS:
-                // Keep question displayed but ensure answers are blocked
-                this.disableChoices();
-                this.blockAnswers();
-                break;
-                
-            case EVENT_STATES.ANSWER_REVEAL:
-                // Keep question displayed but ensure answers are blocked
-                this.disableChoices();
-                this.blockAnswers();
-                this.answerRevealed = true;
-                // Show correct answer if we have question data
-                if (this.currentQuestion && this.currentQuestion.question.Correct !== undefined) {
-                    this.showCorrectAnswer(this.currentQuestion.question.Correct);
-                }
-                break;
-                
-            case EVENT_STATES.RESULTS:
-            case EVENT_STATES.CELEBRATION:
-                // Wait for actual results data via final_results message
-                break;
-                
-            case EVENT_STATES.FINISHED:
-                // Show waiting screen or keep current state
-                if (this.user) {
-                    this.showWaiting();
-                }
-                break;
-                
-            default:
-                console.log('Unhandled state:', data.new_state);
-        }
-    }
-
-    handlePing(data) {
-        // Respond to ping immediately with pong
-        if (this.ws && this.ws.readyState === WebSocket.OPEN && data.ping_id) {
-            const pongMessage = {
-                type: 'pong',
-                data: {
-                    ping_id: data.ping_id
-                }
-            };
-            this.ws.send(JSON.stringify(pongMessage));
-        }
-    }
-
-    // State Synchronization Methods
-
-    handleInitialSync(data) {
-        // console.log('Received initial sync:', data);
-
-        if (!data) {
-            console.warn('No sync data received');
-            return;
+        // WebSocket接続を切断
+        if (this.ws) {
+          this.ws.close();
+          this.ws = null;
         }
 
-        // Update current event state
-        this.currentEventState = data.event_state;
+        // モーダルを閉じる
+        this.hideResetModal();
 
-        // Handle different states
-        switch (data.event_state) {
-            case 'waiting':
-            case 'started':
-            case 'title_display':
-                this.showWaiting();
-                break;
+        // 参加登録画面に戻る
+        this.hideAllSections();
+        this.elements.joinSection.classList.remove('hidden');
+        this.elements.nickname.value = '';
 
-            case 'team_assignment':
-                this.showWaiting(); // Show waiting during team assignment
-                break;
+        // 接続状態をリセット
+        this.updateConnectionStatus(false);
 
-            case 'question_active':
-                if (data.question) {
-                    this.showQuestion(data);
+        this.showMessage(
+          'セッションが破棄されました。再度参加登録を行ってください。'
+        );
+      } else {
+        const error = await response.json();
+        this.showMessage(`セッション破棄に失敗しました: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Reset session error:', error);
+      this.showMessage('セッション破棄中にエラーが発生しました');
+    }
+  }
 
-                    // Restore user's selected answer if available
-                    if (data.answer_data && this.user && data.answer_data[this.user.id] !== undefined) {
-                        this.selectedAnswer = data.answer_data[this.user.id] - 1; // Convert 1-based to 0-based
-                        this.highlightSelectedAnswer(this.selectedAnswer);
-                    }
-                } else {
-                    console.warn('No question data in sync for question_active state');
-                    this.showWaiting();
-                }
-                break;
+  handleStateChanged(data) {
+    console.log('State changed:', data.new_state);
 
-            case 'countdown_active':
-                if (data.question) {
-                    this.showQuestion(data.question);
-                    // If already in countdown, disable choices
-                    this.disableChoices();
-                    this.blockAnswers();
+    // Handle state-specific transitions using constants
+    const { EVENT_STATES } = QuizConstants;
 
-                    // Restore selected answer
-                    if (data.answer_data && this.user && data.answer_data[this.user.id] !== undefined) {
-                        this.selectedAnswer = data.answer_data[this.user.id] - 1; // Convert 1-based to 0-based
-                        this.highlightSelectedAnswer(this.selectedAnswer);
-                    }
-                } else {
-                    this.showWaiting();
-                }
-                break;
-
-            case 'answer_stats':
-            case 'answer_reveal':
-                if (data.question) {
-                    this.showQuestion(data.question);
-                    this.disableChoices();
-                    this.blockAnswers();
-
-                    // Restore selected answer
-                    if (data.answer_data && this.user && data.answer_data[this.user.id] !== undefined) {
-                        this.selectedAnswer = data.answer_data[this.user.id] - 1; // Convert 1-based to 0-based
-                        this.highlightSelectedAnswer(this.selectedAnswer);
-                    }
-
-                    // If answer is revealed, show correct answer
-                    if (data.event_state === 'answer_reveal' && data.question && data.question.correct !== undefined) {
-                        this.showCorrectAnswer(data.question.correct);
-                    }
-                } else {
-                    this.showWaiting();
-                }
-                break;
-
-            case 'results':
-            case 'celebration':
-                // Show results if participant data is available
-                if (data.participant_data) {
-                    const resultsData = {
-                        results: data.participant_data,
-                        teams: data.team || [],
-                        team_mode: data.team && data.team.length > 0
-                    };
-                    this.showResults(resultsData);
-                } else {
-                    // Fallback to waiting if no results data
-                    this.showWaiting();
-                }
-                break;
-
-            case 'finished':
-                this.showWaiting();
-                break;
-
-            default:
-                console.log('Unknown event state in sync:', data.event_state);
-                this.showWaiting();
+    switch (data.new_state) {
+      case EVENT_STATES.WAITING:
+      case EVENT_STATES.STARTED:
+      case EVENT_STATES.TITLE_DISPLAY:
+      case EVENT_STATES.TEAM_ASSIGNMENT:
+        // Show waiting screen for these states
+        if (this.user) {
+          this.showWaiting();
         }
+        break;
 
-        console.log('Initial sync completed for state:', data.event_state);
-    }
-
-    handleStateSync(data) {
-        console.log('Received state sync:', data);
-        // Handle state synchronization (similar to initial sync but for updates)
-        this.handleInitialSync(data);
-    }
-
-    // Request manual synchronization (for debugging or recovery)
-    requestSync() {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            const syncRequest = {
-                type: 'sync_request',
-                data: {
-                    user_id: this.user ? this.user.id : null,
-                    current_state: this.currentEventState
-                }
-            };
-            this.ws.send(JSON.stringify(syncRequest));
-            console.log('Manual sync requested');
-        }
-    }
-
-    updateConnectionStatus(connected) {
-        if (connected) {
-            this.elements.connectionStatus.className = 'status-indicator connected';
-            this.elements.connectionText.textContent = '接続済み';
-            if (this.user && this.user.nickname) {
-                this.elements.connectionUsername.textContent = `(${this.user.nickname})`;
-            }
+      case EVENT_STATES.QUESTION_ACTIVE:
+        // Show question if data is provided
+        if (data.question && data.question_number) {
+          const questionData = {
+            question_number: data.question_number,
+            question: data.question,
+            total_questions: data.total_questions,
+          };
+          this.showQuestion(data.question, data.question_number);
         } else {
-            this.elements.connectionStatus.className = 'status-indicator disconnected';
-            this.elements.connectionText.textContent = '接続中...';
-            this.elements.connectionUsername.textContent = '';
+          // Keep current state if no question data
+          console.log('Question active state but no question data provided');
         }
+        break;
+
+      case EVENT_STATES.COUNTDOWN_ACTIVE:
+        // カウントダウン中は回答可能（カウントダウン終了時にブロックされる）
+        break;
+
+      case EVENT_STATES.ANSWER_STATS:
+        // Keep question displayed but ensure answers are blocked
+        this.disableChoices();
+        this.blockAnswers();
+        break;
+
+      case EVENT_STATES.ANSWER_REVEAL:
+        // Keep question displayed but ensure answers are blocked
+        this.disableChoices();
+        this.blockAnswers();
+        this.answerRevealed = true;
+        // Show correct answer if we have question data
+        if (
+          this.currentQuestion &&
+          this.currentQuestion.question.Correct !== undefined
+        ) {
+          this.showCorrectAnswer(this.currentQuestion.question.Correct);
+        }
+        break;
+
+      case EVENT_STATES.RESULTS:
+      case EVENT_STATES.CELEBRATION:
+        // Wait for actual results data via final_results message
+        break;
+
+      case EVENT_STATES.FINISHED:
+        // Show waiting screen or keep current state
+        if (this.user) {
+          this.showWaiting();
+        }
+        break;
+
+      default:
+        console.log('Unhandled state:', data.new_state);
     }
-    
-    showMessage(message) {
-        // Replace alert() with a mobile-friendly message display
-        if (window.confirm) {
-            // Use confirm for important messages that need user acknowledgment
-            if (message.includes('破棄') || message.includes('失敗')) {
-                confirm(message);
-            } else {
-                alert(message);
-            }
+  }
+
+  handlePing(data) {
+    // Respond to ping immediately with pong
+    if (this.ws && this.ws.readyState === WebSocket.OPEN && data.ping_id) {
+      const pongMessage = {
+        type: 'pong',
+        data: {
+          ping_id: data.ping_id,
+        },
+      };
+      this.ws.send(JSON.stringify(pongMessage));
+    }
+  }
+
+  // State Synchronization Methods
+
+  handleInitialSync(data) {
+    // console.log('Received initial sync:', data);
+
+    if (!data) {
+      console.warn('No sync data received');
+      return;
+    }
+
+    // Update current event state
+    this.currentEventState = data.event_state;
+
+    // Handle different states
+    switch (data.event_state) {
+      case 'waiting':
+      case 'started':
+      case 'title_display':
+        this.showWaiting();
+        break;
+
+      case 'team_assignment':
+        this.showWaiting(); // Show waiting during team assignment
+        break;
+
+      case 'question_active':
+        if (data.question) {
+          this.showQuestion(data.question, data.question_number);
+
+          // Restore user's selected answer if available
+          if (
+            data.answer_data &&
+            this.user &&
+            data.answer_data[this.user.id] !== undefined
+          ) {
+            this.selectedAnswer = data.answer_data[this.user.id] - 1; // Convert 1-based to 0-based
+            this.highlightSelectedAnswer(this.selectedAnswer);
+          }
         } else {
-            alert(message);
+          console.warn('No question data in sync for question_active state');
+          this.showWaiting();
         }
+        break;
+
+      case 'countdown_active':
+        if (data.question) {
+          this.showQuestion(data.question, data.question_number);
+          // If already in countdown, disable choices
+          this.disableChoices();
+          this.blockAnswers();
+
+          // Restore selected answer
+          if (
+            data.answer_data &&
+            this.user &&
+            data.answer_data[this.user.id] !== undefined
+          ) {
+            this.selectedAnswer = data.answer_data[this.user.id] - 1; // Convert 1-based to 0-based
+            this.highlightSelectedAnswer(this.selectedAnswer);
+          }
+        } else {
+          this.showWaiting();
+        }
+        break;
+
+      case 'answer_stats':
+      case 'answer_reveal':
+        if (data.question) {
+          this.showQuestion(data.question, data.question_number);
+          this.disableChoices();
+          this.blockAnswers();
+
+          // Restore selected answer
+          if (
+            data.answer_data &&
+            this.user &&
+            data.answer_data[this.user.id] !== undefined
+          ) {
+            this.selectedAnswer = data.answer_data[this.user.id] - 1; // Convert 1-based to 0-based
+            this.highlightSelectedAnswer(this.selectedAnswer);
+          }
+
+          // If answer is revealed, show correct answer
+          if (
+            data.event_state === 'answer_reveal' &&
+            data.question &&
+            data.question.correct !== undefined
+          ) {
+            this.showCorrectAnswer(data.question.correct);
+          }
+        } else {
+          this.showWaiting();
+        }
+        break;
+
+      case 'results':
+      case 'celebration':
+        // Show results if participant data is available
+        if (data.participant_data) {
+          const resultsData = {
+            results: data.participant_data,
+            teams: data.team || [],
+            team_mode: data.team && data.team.length > 0,
+          };
+          this.showResults(resultsData);
+        } else {
+          // Fallback to waiting if no results data
+          this.showWaiting();
+        }
+        break;
+
+      case 'finished':
+        this.showWaiting();
+        break;
+
+      default:
+        console.log('Unknown event state in sync:', data.event_state);
+        this.showWaiting();
     }
-    
-    preventZoom() {
-        // Prevent double-tap zoom on iOS
-        document.addEventListener('touchend', (e) => {
-            const now = new Date().getTime();
-            if (now - this.lastTouchEnd <= 300) {
-                e.preventDefault();
-            }
-            this.lastTouchEnd = now;
-        }, false);
-        
-        this.lastTouchEnd = 0;
+
+    console.log('Initial sync completed for state:', data.event_state);
+  }
+
+  handleStateSync(data) {
+    console.log('Received state sync:', data);
+    // Handle state synchronization (similar to initial sync but for updates)
+    this.handleInitialSync(data);
+  }
+
+  // Request manual synchronization (for debugging or recovery)
+  requestSync() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      const syncRequest = {
+        type: 'sync_request',
+        data: {
+          user_id: this.user ? this.user.id : null,
+          current_state: this.currentEventState,
+        },
+      };
+      this.ws.send(JSON.stringify(syncRequest));
+      console.log('Manual sync requested');
     }
+  }
+
+  updateConnectionStatus(connected) {
+    if (connected) {
+      this.elements.connectionStatus.className = 'status-indicator connected';
+      this.elements.connectionText.textContent = '接続済み';
+      if (this.user && this.user.nickname) {
+        this.elements.connectionUsername.textContent = `(${this.user.nickname})`;
+      }
+    } else {
+      this.elements.connectionStatus.className =
+        'status-indicator disconnected';
+      this.elements.connectionText.textContent = '接続中...';
+      this.elements.connectionUsername.textContent = '';
+    }
+  }
+
+  showMessage(message) {
+    // Replace alert() with a mobile-friendly message display
+    if (window.confirm) {
+      // Use confirm for important messages that need user acknowledgment
+      if (message.includes('破棄') || message.includes('失敗')) {
+        confirm(message);
+      } else {
+        alert(message);
+      }
+    } else {
+      alert(message);
+    }
+  }
+
+  preventZoom() {
+    // Prevent double-tap zoom on iOS
+    document.addEventListener(
+      'touchend',
+      (e) => {
+        const now = new Date().getTime();
+        if (now - this.lastTouchEnd <= 300) {
+          e.preventDefault();
+        }
+        this.lastTouchEnd = now;
+      },
+      false
+    );
+
+    this.lastTouchEnd = 0;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new QuizParticipant();
+  new QuizParticipant();
 });

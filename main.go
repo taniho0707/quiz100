@@ -44,7 +44,7 @@ func main() {
 	teamAssignmentSvc := models.NewTeamAssignmentService(userRepo, teamRepo, config)
 
 	// Initialize WebSocket hub and manager
-	hub := websocket.NewHub()
+	hub := websocket.NewHub(answerRepo)
 	hubManager := websocket.NewHubManager(hub)
 
 	// Initialize ping manager with adapter

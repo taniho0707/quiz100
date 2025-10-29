@@ -325,6 +325,9 @@ func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
 				Choices: question.Choices,
 				Correct: 0, // invalid value
 			}
+			if currentState == models.StateAnswerReveal {
+				syncData.QuestionData.Correct = question.Correct
+			}
 		}
 	}
 

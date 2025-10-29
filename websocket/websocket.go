@@ -3,9 +3,9 @@ package websocket
 import (
 	"encoding/json"
 	"log"
-	"maps"
 	"net/http"
 	"quiz100/models"
+	"strconv"
 	"sync"
 	"time"
 
@@ -43,6 +43,9 @@ type Hub struct {
 	ClientStates   map[*Client]*ClientState
 	LastEventState *EventSyncData
 	StateSync      chan *StateSyncRequest
+
+	// for initialization
+	answerRepo *models.AnswerRepository
 }
 
 // ClientState tracks individual client synchronization state
@@ -86,7 +89,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func NewHub() *Hub {
+func NewHub(answerRepo *models.AnswerRepository) *Hub {
 	return &Hub{
 		Clients:      make(map[*Client]bool),
 		Broadcast:    make(chan []byte),
@@ -94,7 +97,8 @@ func NewHub() *Hub {
 		Unregister:   make(chan *Client),
 		StartTime:    time.Now(),
 		ClientStates: make(map[*Client]*ClientState),
-		StateSync:    make(chan *StateSyncRequest, 100),
+		StateSync:    make(chan *StateSyncRequest, 500),
+		answerRepo:   answerRepo,
 	}
 }
 
@@ -392,7 +396,12 @@ func (h *Hub) handleStateSyncRequest(request *StateSyncRequest) {
 		reducedEventState.TeamData = h.LastEventState.TeamData
 		reducedEventState.ParticipantData = h.LastEventState.ParticipantData
 		reducedEventState.AnswerData = make(map[string]any)
-		maps.Copy(reducedEventState.AnswerData, h.LastEventState.AnswerData)
+		// maps.Copy(reducedEventState.AnswerData, h.LastEventState.AnswerData)
+		ans, err := h.answerRepo.GetAnswerByUserAndQuestion(request.Client.UserID, h.LastEventState.QuestionNumber)
+		if err == nil && ans != nil {
+			// AnswerData uses string keys (user_id as string) -> convert int to string
+			reducedEventState.AnswerData[strconv.Itoa(request.Client.UserID)] = ans.AnswerIndex
+		}
 
 		switch request.Client.Type {
 		case ClientTypeParticipant:
@@ -407,7 +416,7 @@ func (h *Hub) handleStateSyncRequest(request *StateSyncRequest) {
 				}
 			}
 		case ClientTypeScreen:
-			reducedEventState.QuestionData.Correct = 0 // invalid data
+			// reducedEventState.QuestionData.Correct = 0 // invalid data
 		case ClientTypeAdmin:
 			// do nothing
 		default:

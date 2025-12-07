@@ -60,10 +60,11 @@ func (s *TeamAssignmentService) CreateTeamsAndAssignUsers() ([]Team, error) {
 		numTeams = 1
 	}
 
-	// Create teams
+	// Create teams with random team names
 	var teams []Team
+	teamNames := s.getOrderedTeamNames(numTeams) // FIXME: ランダムにする必要が無いので連番にする
 	for i := 0; i < numTeams; i++ {
-		teamName := fmt.Sprintf("チーム%d", i+1)
+		teamName := teamNames[i]
 		team, err := s.teamRepo.CreateTeam(teamName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create team %d: %v", i+1, err)
@@ -249,7 +250,7 @@ func (s *TeamAssignmentService) AssignUserToAvailableTeam(userID int, nickname s
 
 	// If no team available or all are full, create a new team
 	if targetTeam == nil {
-		teamName := fmt.Sprintf("チーム%d", len(teams)+1)
+		teamName := s.getNextTeamName(len(teams))
 		newTeam, err := s.teamRepo.CreateTeam(teamName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new team: %v", err)
@@ -265,4 +266,43 @@ func (s *TeamAssignmentService) AssignUserToAvailableTeam(userID int, nickname s
 
 	// Return the updated team with members
 	return s.teamRepo.GetTeamWithMembers(targetTeam.ID)
+}
+
+// getOrderedTeamNames returns a shuffled list of team names for the specified number of teams
+func (s *TeamAssignmentService) getOrderedTeamNames(numTeams int) []string {
+	// Use team names from config if available
+	if len(s.config.TeamNames) > 0 {
+		// Shuffle the team names
+		teamNames := make([]string, len(s.config.TeamNames))
+		copy(teamNames, s.config.TeamNames)
+
+		// If we need more team names than available, append numbered teams
+		if numTeams > len(teamNames) {
+			for i := len(teamNames); i < numTeams; i++ {
+				teamNames = append(teamNames, fmt.Sprintf("チーム%d", i+1))
+			}
+		}
+
+		return teamNames[:numTeams]
+	}
+
+	// Fallback to default numbered team names
+	teamNames := make([]string, numTeams)
+	for i := 0; i < numTeams; i++ {
+		teamNames[i] = fmt.Sprintf("チーム%d", i+1)
+	}
+	return teamNames
+}
+
+// getNextTeamName returns a team name for a new team based on existing teams count
+func (s *TeamAssignmentService) getNextTeamName(existingTeamsCount int) string {
+	// Use team names from config if available
+	if len(s.config.TeamNames) > existingTeamsCount {
+		// Get all team names that have been shuffled
+		teamNames := s.getOrderedTeamNames(existingTeamsCount + 1)
+		return teamNames[existingTeamsCount]
+	}
+
+	// Fallback to default numbered team name
+	return fmt.Sprintf("チーム%d", existingTeamsCount+1)
 }

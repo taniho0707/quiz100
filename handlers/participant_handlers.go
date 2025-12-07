@@ -217,6 +217,38 @@ func (ph *ParticipantHandlers) Answer(c *gin.Context) {
 
 	ph.logger.LogAnswer(user.Nickname, req.QuestionNumber, req.AnswerIndex, isCorrect)
 
+	// Update user score based on answer correctness
+	scoreChange := 0
+	if existingAnswer != nil {
+		// If changing answer, adjust score based on previous and new answer
+		if existingAnswer.IsCorrect && !isCorrect {
+			// Was correct, now incorrect: subtract points
+			scoreChange = -question.Point
+		} else if !existingAnswer.IsCorrect && isCorrect {
+			// Was incorrect, now correct: add points
+			scoreChange = question.Point
+		}
+		// If both correct or both incorrect, no score change
+	} else {
+		// New answer: add points if correct
+		if isCorrect {
+			scoreChange = question.Point
+		}
+	}
+
+	// Apply score change if any
+	newScore := user.Score
+	if scoreChange != 0 {
+		newScore = user.Score + scoreChange
+		err = ph.userRepo.UpdateUserScore(user.ID, newScore)
+		if err != nil {
+			ph.logger.LogError("updating user score", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update score"})
+			return
+		}
+		ph.logger.Info("User %s score updated: %d -> %d (change: %+d)", user.Nickname, user.Score, newScore, scoreChange)
+	}
+
 	// Get the saved answer from database
 	savedAnswer, err := ph.answerRepo.GetAnswerByUserAndQuestion(user.ID, req.QuestionNumber)
 	if err != nil {
@@ -238,6 +270,9 @@ func (ph *ParticipantHandlers) Answer(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"answer_index": savedAnswer.AnswerIndex,
+		"is_correct":   isCorrect,
+		"new_score":    newScore,
+		"score_change": scoreChange,
 	})
 }
 

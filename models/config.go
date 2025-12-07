@@ -13,6 +13,7 @@ type Config struct {
 	Event          EventConfig          `toml:"event"`
 	TeamSeparation TeamSeparationConfig `toml:"team_separation"`
 	Questions      []Question           `toml:"questions"`
+	TeamNames      []string             // Loaded from team.toml
 }
 
 type EventConfig struct {
@@ -26,12 +27,17 @@ type TeamSeparationConfig struct {
 	AvoidGroups []string `toml:"avoid_groups"`
 }
 
+type TeamConfig struct {
+	TeamNames []string `toml:"team_names"`
+}
+
 type Question struct {
 	Type    string   `toml:"type" json:"type"`
 	Text    string   `toml:"text" json:"text"`
 	Image   string   `toml:"image" json:"image"`
 	Choices []string `toml:"choices" json:"choices"`
 	Correct int      `toml:"correct" json:"correct"`
+	Point   int      `toml:"point" json:"point"`
 }
 
 func LoadConfig(configPath string) (*Config, error) {
@@ -44,11 +50,38 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to decode config file: %v", err)
 	}
 
+	// Load team names from team.toml
+	teamConfigPath := filepath.Join(filepath.Dir(configPath), "team.toml")
+	teamNames, err := LoadTeamNames(teamConfigPath)
+	if err != nil {
+		// Team names are optional, use default if not found
+		teamNames = []string{}
+	}
+	config.TeamNames = teamNames
+
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("config validation failed: %v", err)
 	}
 
 	return &config, nil
+}
+
+// LoadTeamNames loads team names from team.toml
+func LoadTeamNames(teamConfigPath string) ([]string, error) {
+	if _, err := os.Stat(teamConfigPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("team config file not found: %s", teamConfigPath)
+	}
+
+	var teamConfig TeamConfig
+	if _, err := toml.DecodeFile(teamConfigPath, &teamConfig); err != nil {
+		return nil, fmt.Errorf("failed to decode team config file: %v", err)
+	}
+
+	if len(teamConfig.TeamNames) == 0 {
+		return nil, errors.New("team_names is empty in team config")
+	}
+
+	return teamConfig.TeamNames, nil
 }
 
 func (c *Config) Validate() error {

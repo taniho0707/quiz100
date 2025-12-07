@@ -194,7 +194,11 @@ class QuizScreen {
 
       case EVENT_STATES.QUESTION_ACTIVE:
         if (data.question) {
-          this.currentQuestion = data.question;
+          this.currentQuestion = {
+            question_number: data.question_number,
+            question: data.question,
+            total_questions: data.total_questions,
+          };
           this.displayQuestion(data);
           this.showQuestionScreen();
         } else {
@@ -204,7 +208,11 @@ class QuizScreen {
 
       case EVENT_STATES.COUNTDOWN_ACTIVE:
         if (data.question) {
-          this.currentQuestion = data.question;
+          this.currentQuestion = {
+            question_number: data.question_number,
+            question: data.question,
+            total_questions: data.total_questions,
+          };
           this.displayQuestion(data);
           this.showQuestionScreen();
           // カウントダウンは表示しない（リロード時には既に終わっている可能性が高い）
@@ -215,7 +223,11 @@ class QuizScreen {
 
       case EVENT_STATES.ANSWER_STATS:
         if (data.question && data.participant_data) {
-          this.currentQuestion = data.question;
+          this.currentQuestion = {
+            question_number: data.question_number,
+            question: data.question,
+            total_questions: data.total_questions,
+          };
           // 回答統計を表示
           const totalParticipants = data.participant_data.length;
           const choicesCounts = this.calculateChoicesCounts(
@@ -232,7 +244,11 @@ class QuizScreen {
 
       case EVENT_STATES.ANSWER_REVEAL:
         if (data.question) {
-          this.currentQuestion = data.question;
+          this.currentQuestion = {
+            question_number: data.question_number,
+            question: data.question,
+            total_questions: data.total_questions,
+          };
           this.displayQuestion(data);
           this.showQuestionScreen();
 
@@ -489,7 +505,7 @@ class QuizScreen {
 
     this.elements.choicesDisplay.innerHTML = '';
 
-    this.currentQuestion.choices.forEach((choice, index) => {
+    this.currentQuestion.question.choices.forEach((choice, index) => {
       const choiceDiv = document.createElement('div');
       const count = choicesCounts[index] || 0;
       choiceDiv.className = `choice-display choice-with-stats`;

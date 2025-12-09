@@ -38,6 +38,9 @@ const (
 	MessageSyncRequest  MessageType = "sync_request"
 	MessageSyncComplete MessageType = "sync_complete"
 
+	// System messages
+	MessageDatabaseReset MessageType = "database_reset"
+
 	// Legacy/deprecated messages (to be removed)
 	MessageTimeAlert MessageType = "time_alert" // DEPRECATED: use countdown instead
 )
@@ -68,6 +71,7 @@ func AllMessageTypes() []MessageType {
 		MessageStateSync,
 		MessageSyncRequest,
 		MessageSyncComplete,
+		MessageDatabaseReset,
 		MessageTimeAlert, // DEPRECATED
 	}
 }

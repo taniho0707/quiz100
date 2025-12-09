@@ -1,10 +1,15 @@
 package handlers
 
 import (
+	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"quiz100/models"
 	"quiz100/services"
 	"quiz100/websocket"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,6 +27,7 @@ type AdminHandlers struct {
 	config            *models.Config
 	currentEvent      *models.Event
 	currentQuestion   *models.Question
+	dbResetCallback   func() error
 }
 
 // AdminRequest represents a general admin action request
@@ -499,4 +505,83 @@ func (ah *AdminHandlers) getTotalUsersInTeams(teams []models.Team) int {
 // SetCurrentEvent sets the current event (for handlers that need it)
 func (ah *AdminHandlers) SetCurrentEvent(event *models.Event) {
 	ah.currentEvent = event
+}
+
+// SetDBResetCallback sets the callback function for database reset
+func (ah *AdminHandlers) SetDBResetCallback(callback func() error) {
+	ah.dbResetCallback = callback
+}
+
+// ResetDatabase handles database reset request
+func (ah *AdminHandlers) ResetDatabase(c *gin.Context) {
+	dbPath := "database/quiz.db"
+
+	// Create backup
+	backupDir := "logs"
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		ah.logger.LogError("creating backup directory", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create backup directory"})
+		return
+	}
+
+	timestamp := time.Now().Format("20060102_150405")
+	backupPath := filepath.Join(backupDir, fmt.Sprintf("quiz_backup_%s.db", timestamp))
+
+	// Copy database file
+	if err := copyFile(dbPath, backupPath); err != nil {
+		ah.logger.LogError("creating database backup", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create backup"})
+		return
+	}
+
+	ah.logger.Info("Database backup created: %s", backupPath)
+
+	// Broadcast reset notification to all clients
+	resetData := gin.H{
+		"message": "データベースがリセットされました。ページをリロードしてください。",
+	}
+	if err := ah.hubManager.BroadcastDatabaseReset(resetData); err != nil {
+		ah.logger.LogError("broadcasting database reset", err)
+	}
+
+	// Wait a bit for the broadcast to complete
+	time.Sleep(500 * time.Millisecond)
+
+	// Execute the reset callback (this will trigger application restart)
+	if ah.dbResetCallback != nil {
+		go func() {
+			// Wait for response to be sent
+			time.Sleep(1 * time.Second)
+			if err := ah.dbResetCallback(); err != nil {
+				ah.logger.LogError("executing database reset", err)
+			}
+		}()
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "データベースをリセットしました",
+		"backup_path": backupPath,
+	})
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	return destFile.Sync()
 }

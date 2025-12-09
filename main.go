@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 
 	"quiz100/database"
 	"quiz100/handlers"
@@ -69,6 +71,45 @@ func main() {
 	adminHandlers.SetCurrentEvent(currentEvent)
 	websocketHandlers.SetCurrentEvent(currentEvent)
 
+	// Set up database reset callback
+	adminHandlers.SetDBResetCallback(func() error {
+		logger.Info("Database reset requested - restarting application")
+
+		// Close database connection
+		db.Close()
+
+		// Delete database file
+		dbPath := "database/quiz.db"
+		if err := os.Remove(dbPath); err != nil {
+			logger.LogError("removing database file", err)
+			return err
+		}
+
+		logger.Info("Database file deleted - restarting process")
+
+		// Get the executable path
+		executable, err := os.Executable()
+		if err != nil {
+			logger.LogError("getting executable path", err)
+			return err
+		}
+
+		// Restart the process
+		cmd := exec.Command(executable, os.Args[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+
+		if err := cmd.Start(); err != nil {
+			logger.LogError("restarting process", err)
+			return err
+		}
+
+		// Exit current process
+		os.Exit(0)
+		return nil
+	})
+
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
@@ -118,6 +159,9 @@ func main() {
 			// Debug State Jump System
 			admin.POST("/jump-state", adminHandlers.AdminJumpState)
 			admin.GET("/available-states", adminHandlers.GetAvailableStates)
+
+			// Database Reset System
+			admin.POST("/reset-database", adminHandlers.ResetDatabase)
 		}
 
 		screen := api.Group("/screen")

@@ -59,7 +59,7 @@ class QuizAdmin {
             jumpStateSelect: document.getElementById('jump-state-select'),
             jumpQuestionInput: document.getElementById('jump-question-input'),
             jumpStateBtn: document.getElementById('jump-state-btn'),
-            
+
             // ログ表示
             logContainer: document.getElementById('log-container'),
             logList: document.getElementById('log-list'),
@@ -67,7 +67,13 @@ class QuizAdmin {
             // 並び替えボタン
             sortByNameBtn: document.getElementById('sort-by-name'),
             sortByScoreBtn: document.getElementById('sort-by-score'),
-            sortByPingBtn: document.getElementById('sort-by-ping')
+            sortByPingBtn: document.getElementById('sort-by-ping'),
+
+            // DB削除
+            resetDatabaseBtn: document.getElementById('btn-reset-database'),
+            dbResetModal: document.getElementById('db-reset-modal'),
+            confirmResetDbBtn: document.getElementById('confirm-reset-db'),
+            cancelResetDbBtn: document.getElementById('cancel-reset-db')
         };
     }
 
@@ -90,6 +96,11 @@ class QuizAdmin {
         this.elements.sortByNameBtn?.addEventListener('click', () => this.setSortMode('name'));
         this.elements.sortByScoreBtn?.addEventListener('click', () => this.setSortMode('score'));
         this.elements.sortByPingBtn?.addEventListener('click', () => this.setSortMode('ping'));
+
+        // DB削除
+        this.elements.resetDatabaseBtn?.addEventListener('click', () => this.showResetDatabaseModal());
+        this.elements.confirmResetDbBtn?.addEventListener('click', () => this.confirmResetDatabase());
+        this.elements.cancelResetDbBtn?.addEventListener('click', () => this.hideResetDatabaseModal());
 
         // 参加者リストの動的ボタンイベント（イベントデリゲーション）
         this.elements.participantsList?.addEventListener('click', (e) => {
@@ -187,6 +198,10 @@ class QuizAdmin {
 
             case 'ping_result':
                 this.handlePingResult(message.data);
+                break;
+
+            case 'database_reset':
+                this.handleDatabaseReset(message.data);
                 break;
 
             default:
@@ -1142,6 +1157,63 @@ class QuizAdmin {
             console.error('State jump failed:', error);
             this.addLog('ステートジャンプに失敗しました', 'error');
         }
+    }
+
+    // DB削除関連メソッド
+    showResetDatabaseModal() {
+        if (this.elements.dbResetModal) {
+            this.elements.dbResetModal.style.display = 'flex';
+        }
+    }
+
+    hideResetDatabaseModal() {
+        if (this.elements.dbResetModal) {
+            this.elements.dbResetModal.style.display = 'none';
+        }
+    }
+
+    async confirmResetDatabase() {
+        this.hideResetDatabaseModal();
+
+        try {
+            this.addLog('データベースをリセット中...', 'warning');
+
+            const response = await fetch('/api/admin/reset-database', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.addLog(`データベースがリセットされました: ${result.backup_path}`, 'success');
+                this.addLog('アプリケーションを再起動しています...', 'info');
+
+                // Wait for server to restart, then reload page
+                setTimeout(() => {
+                    this.addLog('ページをリロードします...', 'info');
+                    window.location.reload();
+                }, 3000);
+            } else {
+                const error = await response.json();
+                this.addLog(`DBリセットエラー: ${error.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Database reset failed:', error);
+            this.addLog('DBリセットに失敗しました', 'error');
+        }
+    }
+
+    handleDatabaseReset(data) {
+        console.log('Database reset notification:', data);
+        this.addLog('サーバーからDB削除通知を受信しました', 'warning');
+        this.addLog(data.message || 'データベースがリセットされました', 'warning');
+
+        // Reload page after a short delay
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
     }
 }
 

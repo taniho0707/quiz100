@@ -147,6 +147,11 @@ func (hm *HubManager) BroadcastStateChanged(stateData any) error {
 	return hm.BroadcastMessage(MessageStateChanged, stateData)
 }
 
+// BroadcastDatabaseReset sends database reset notification to all clients
+func (hm *HubManager) BroadcastDatabaseReset(resetData any) error {
+	return hm.BroadcastMessage(MessageDatabaseReset, resetData)
+}
+
 // GetClientCount returns the count of clients by type
 func (hm *HubManager) GetClientCount() map[string]int {
 	hubCounts := hm.hub.GetClientCount()

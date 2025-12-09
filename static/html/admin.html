@@ -74,14 +74,47 @@
                         <select id="jump-state-select" style="font-size: 10px; padding: 2px 4px;">
                             <option value="">状態を選択...</option>
                         </select>
-                        <input id="jump-question-input" type="number" min="0" max="20" placeholder="問題番号" 
+                        <input id="jump-question-input" type="number" min="0" max="20" placeholder="問題番号"
                                style="width: 60px; font-size: 10px; padding: 2px 4px;">
-                        <button id="jump-state-btn" class="btn-debug" style="font-size: 10px; padding: 2px 6px; 
+                        <button id="jump-state-btn" class="btn-debug" style="font-size: 10px; padding: 2px 6px;
                                background: #666; color: white; border: none; border-radius: 2px;">ジャンプ</button>
                     </div>
                 </div>
+                <div class="db-reset-section" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;">
+                    <h3 style="font-size: 12px; color: #d32f2f; margin-bottom: 8px;">⚠️ データベース管理</h3>
+                    <button id="btn-reset-database" class="btn-danger" style="font-size: 11px; padding: 4px 8px;
+                           background: #d32f2f; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                        🗑️ DB削除
+                    </button>
+                </div>
             </li>
         </ui>
+    </div>
+
+    <!-- Database Reset Confirmation Modal -->
+    <div id="db-reset-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3 style="color: #d32f2f; margin-bottom: 16px;">⚠️ データベース削除の確認</h3>
+            <p style="margin-bottom: 16px;">本当にデータベースを削除しますか？</p>
+            <p style="margin-bottom: 16px; font-size: 14px; color: #666;">
+                この操作により、以下のデータが完全に削除されます：<br>
+                • すべての参加者情報<br>
+                • すべての回答履歴<br>
+                • チーム情報<br>
+                • イベント履歴
+            </p>
+            <p style="margin-bottom: 24px; font-weight: bold; color: #d32f2f;">
+                この操作は取り消せません。バックアップは自動的に作成されます。
+            </p>
+            <div class="modal-buttons" style="display: flex; gap: 12px; justify-content: center;">
+                <button id="confirm-reset-db" class="btn-danger" style="padding: 8px 24px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                    はい、削除します
+                </button>
+                <button id="cancel-reset-db" class="btn-secondary" style="padding: 8px 24px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                    いいえ、キャンセル
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Common utility scripts -->

@@ -38,6 +38,9 @@ class QuizParticipant {
       userNickname: document.getElementById('user-nickname'),
       userScore: document.getElementById('user-score'),
 
+      teamSection: document.getElementById('team-section'),
+      userTeamName: document.getElementById('user-team-name'),
+
       questionSection: document.getElementById('question-section'),
       currentQuestionNum: document.getElementById('current-question-num'),
       // totalQuestions: document.getElementById('total-questions'),
@@ -173,6 +176,10 @@ class QuizParticipant {
         this.showResults(message.data);
         break;
 
+      case 'team_assignment':
+        this.handleTeamAssignment(message.data);
+        break;
+
       case 'team_member_added':
         break;
 
@@ -306,6 +313,11 @@ class QuizParticipant {
         this.sessionID = null;
         this.showJoinScreen();
       }
+
+      if (data.assigned_team) {
+        this.user.teamName = data.assigned_team.name;
+        this.updateConnectionStatus(true);
+      }
     } catch (error) {
       console.error('Error rejoining:', error);
       localStorage.removeItem('quiz_session_id');
@@ -340,12 +352,8 @@ class QuizParticipant {
     // this.elements.totalQuestions.textContent = questionData.total_questions;
     this.elements.questionText.textContent = questionData.text;
 
-    if (questionData.image) {
-      this.elements.questionImage.src = `/images/${questionData.image}`;
-      this.elements.questionImage.classList.remove('hidden');
-    } else {
-      this.elements.questionImage.classList.add('hidden');
-    }
+    // 参加者画面では画像を一切表示しない
+    this.elements.questionImage.classList.add('hidden');
 
     this.renderChoices(questionData.choices);
   }
@@ -636,6 +644,7 @@ class QuizParticipant {
   hideAllSections() {
     this.elements.joinSection.classList.add('hidden');
     this.elements.waitingSection.classList.add('hidden');
+    this.elements.teamSection.classList.add('hidden');
     this.elements.questionSection.classList.add('hidden');
     this.elements.resultsSection.classList.add('hidden');
   }
@@ -798,6 +807,11 @@ class QuizParticipant {
     // Update current event state
     this.currentEventState = data.event_state;
 
+    // Restore team information if available (for all states)
+    if (data.team && data.team.length > 0 && this.user) {
+      this.restoreTeamInfo(data.team);
+    }
+
     // Handle different states
     switch (data.event_state) {
       case 'waiting':
@@ -807,7 +821,12 @@ class QuizParticipant {
         break;
 
       case 'team_assignment':
-        this.showWaiting(); // Show waiting during team assignment
+        // Team info already restored by restoreTeamInfo, just show announcement screen
+        if (this.user && this.user.teamName) {
+          this.showTeamAnnouncement(this.user.teamName);
+        } else {
+          this.showWaiting();
+        }
         break;
 
       case 'question_active':
@@ -914,6 +933,71 @@ class QuizParticipant {
     this.handleInitialSync(data);
   }
 
+  handleTeamAssignment(data) {
+    console.log('Received team assignment:', data);
+
+    if (!data || !data.teams || !this.user) {
+      console.warn('Invalid team assignment data or user not logged in');
+      return;
+    }
+
+    // Find the team that includes the current user
+    let userTeam = null;
+    for (const team of data.teams) {
+      if (
+        team.members &&
+        team.members.some((member) => member.id === this.user.id)
+      ) {
+        userTeam = team;
+        break;
+      }
+    }
+
+    if (userTeam) {
+      // Save team name to user object
+      this.user.teamName = userTeam.name;
+      console.log('User assigned to team:', userTeam.name);
+
+      // Update connection status to show team name
+      this.updateConnectionStatus(true);
+
+      // Show team announcement screen
+      this.showTeamAnnouncement(userTeam.name);
+    } else {
+      console.warn('User not found in any team');
+      this.showWaiting();
+    }
+  }
+
+  restoreTeamInfo(teams) {
+    // Find the team that includes the current user (without showing team announcement)
+    let userTeam = null;
+    for (const team of teams) {
+      if (
+        team.members &&
+        team.members.some((member) => member.id === this.user.id)
+      ) {
+        userTeam = team;
+        break;
+      }
+    }
+
+    if (userTeam) {
+      // Restore team name to user object
+      this.user.teamName = userTeam.name;
+      console.log('Team info restored:', userTeam.name);
+
+      // Update connection status to show team name
+      this.updateConnectionStatus(true);
+    }
+  }
+
+  showTeamAnnouncement(teamName) {
+    this.hideAllSections();
+    this.elements.teamSection.classList.remove('hidden');
+    this.elements.userTeamName.textContent = teamName;
+  }
+
   // Request manual synchronization (for debugging or recovery)
   requestSync() {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -934,7 +1018,12 @@ class QuizParticipant {
       this.elements.connectionStatus.className = 'status-indicator connected';
       this.elements.connectionText.textContent = '接続済み';
       if (this.user && this.user.nickname) {
-        this.elements.connectionUsername.textContent = `(${this.user.nickname})`;
+        let userInfo = `(${this.user.nickname}`;
+        if (this.user.teamName) {
+          userInfo += `：${this.user.teamName}`;
+        }
+        userInfo += ')';
+        this.elements.connectionUsername.textContent = userInfo;
       }
     } else {
       this.elements.connectionStatus.className =

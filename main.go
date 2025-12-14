@@ -119,6 +119,7 @@ func main() {
 	r.Static("/css", "./static/css")
 	r.Static("/js", "./static/js")
 	r.Static("/images", "./static/images")
+	r.Static("/audio", "./static/audio")
 	r.StaticFile("/favicon.ico", "./static/favicon.ico")
 
 	// HTML page handlers (temporarily keeping old handler until we create page handlers)

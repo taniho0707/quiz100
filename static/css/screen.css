@@ -238,7 +238,7 @@ body {
     background: white;
     border-radius: 15px;
     padding: 40px;
-    font-size: 70px;
+    font-size: 55px;
     font-weight: 500;
     backdrop-filter: blur(10px);
     border: 4px solid darkgray;
@@ -690,7 +690,7 @@ body {
 .teams-display .team-header h3 {
     font-size: 1.8rem;
     font-weight: 600;
-    margin-bottom: 20px;
+    /* margin-bottom: 20px; */
     color: orangered;
 }
 
@@ -702,10 +702,10 @@ body {
 }
 
 .member-name {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 0.95rem;
+    /* background: rgba(255, 255, 255, 0.2); */
+    /* padding: 8px 16px; */
+    /* border-radius: 20px; */
+    font-size: 40px;
     font-weight: 500;
 }
 
@@ -995,6 +995,51 @@ body {
     }
 }
 
+/* Answer Reveal Image Styles */
+.answer-reveal-image-container {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    width: calc(50% - 30px); /* 画面の半分 - 両側のgap 15px */
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: imageSlideIn 0.8s ease-out;
+}
+
+.answer-reveal-image-container.hidden {
+    display: none;
+}
+
+.answer-reveal-image-container.position-left {
+    left: 15px;
+}
+
+.answer-reveal-image-container.position-right {
+    right: 15px;
+}
+
+.answer-reveal-image {
+    max-width: 100%;
+    width: 100%;
+    height: auto;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    border: 4px solid #FFD700;
+}
+
+@keyframes imageSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-50%) scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+    }
+}
+
 @media (max-width: 768px) {
     .countdown-number-display {
         font-size: 8rem;
@@ -1052,5 +1097,9 @@ body {
 
     .team-result-item .team-members {
         justify-content: center;
+    }
+
+    .answer-reveal-image-container {
+        width: calc(50% - 30px); /* モバイルでも同じ制約を維持 */
     }
 }

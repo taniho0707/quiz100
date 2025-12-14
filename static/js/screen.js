@@ -51,9 +51,29 @@ class QuizScreen {
 
       rankingsDisplay: document.getElementById('rankings-display'),
       emojiReactions: document.getElementById('emoji-reactions'),
+
+      answerRevealImageContainer: document.getElementById('answer-reveal-image-container'),
+      answerRevealImage: document.getElementById('answer-reveal-image'),
     };
 
     this.elements.joinUrl.textContent = window.location.origin;
+  }
+
+  /**
+   * 音声ファイルを再生する（エラーが発生しても無視）
+   * @param {string} audioFileName - 再生する音声ファイル名
+   */
+  playAudio(audioFileName) {
+    try {
+      const audio = new Audio(`/audio/${audioFileName}`);
+      audio.play().catch(error => {
+        // 音声ファイルが見つからない場合やブラウザが再生を拒否した場合は無視
+        console.log(`Audio playback skipped: ${audioFileName}`, error.message);
+      });
+    } catch (error) {
+      // エラーが発生しても無視
+      console.log(`Audio initialization failed: ${audioFileName}`, error.message);
+    }
   }
 
   connectWebSocket() {
@@ -324,9 +344,13 @@ class QuizScreen {
     this.answersBlocked = false;
     this.hideCountdown();
     this.elements.timeUpDisplay.classList.add('hidden');
+    this.hideAnswerRevealImage();
     this.displayQuestion(data);
     this.elements.questionHeader.style = '';
     this.showQuestionScreen();
+
+    // 問題表示時の音声再生
+    this.playAudio('question_start.mp3');
   }
 
   handleAnswerReceived(data) {
@@ -471,12 +495,8 @@ class QuizScreen {
     this.elements.currentQuestionNum.textContent = questionData.question_number;
     this.elements.questionText.textContent = question.text;
 
-    if (question.image) {
-      this.elements.questionImage.src = `/images/${question.image}`;
-      this.elements.questionImage.hidden = false;
-    } else {
-      this.elements.questionImage.hidden = true;
-    }
+    // 問題出題中は画像を表示しない（正答発表後のみ表示）
+    this.elements.questionImage.hidden = true;
 
     this.displayChoices(question.choices);
     this.updateAnswerProgress();
@@ -640,6 +660,13 @@ class QuizScreen {
     // column-reverseにより、appendChildで追加すると視覚的には上に表示される
     container.appendChild(teamElement);
 
+    // results-screenを一番上にスクロール
+    if (this.elements.resultsScreen) {
+      this.elements.resultsScreen.scrollTop = 0;
+    }
+    // containerも一番上にスクロール
+    container.scrollTop = 0;
+
     // スライドインアニメーションを適用
     setTimeout(() => {
       teamElement.classList.add('slide-in');
@@ -724,6 +751,9 @@ class QuizScreen {
   showTimeUp() {
     this.elements.timeUpDisplay.classList.remove('hidden');
     this.elements.timeUpDisplay.classList.add('transparent-overlay');
+
+    // カウントダウン終了時の音声再生
+    this.playAudio('time_up.mp3');
 
     // Hide after 5 seconds
     setTimeout(() => {
@@ -817,6 +847,62 @@ class QuizScreen {
         choice.classList.add('correct', 'revealed');
       }
     });
+
+    // 正答発表時の音声再生
+    this.playAudio('answer_reveal.mp3');
+
+    // 1秒後に画像を表示（設定があれば）
+    setTimeout(() => {
+      this.showAnswerRevealImage(data.correct);
+    }, 1000);
+  }
+
+  /**
+   * 正解発表時の画像を表示する
+   * @param {number} correctIndex - 正解の選択肢インデックス（1-based）
+   */
+  showAnswerRevealImage(correctIndex) {
+    if (!this.currentQuestion || !this.currentQuestion.question) {
+      return;
+    }
+
+    const question = this.currentQuestion.question;
+    const imageFileName = question.image;
+
+    // 画像設定がない、または空文字列の場合は何もしない
+    if (!imageFileName || imageFileName.trim() === '') {
+      return;
+    }
+
+    // 画像パスを設定
+    this.elements.answerRevealImage.src = `/images/${imageFileName}`;
+
+    // 正解の選択肢の位置に応じて、画像の表示位置を決定
+    // 選択肢は2x2グリッド: [0: 左上, 1: 右上, 2: 左下, 3: 右下]
+    // 正解が左側（0, 2）なら右側に画像を表示、右側（1, 3）なら左側に画像を表示
+    const correctIndexZeroBased = correctIndex - 1; // Convert to 0-based
+    const isCorrectOnLeft = correctIndexZeroBased % 2 === 0;
+
+    this.elements.answerRevealImageContainer.classList.remove('position-left', 'position-right');
+    if (isCorrectOnLeft) {
+      // 正解が左側なので、画像は右側に表示
+      this.elements.answerRevealImageContainer.classList.add('position-right');
+    } else {
+      // 正解が右側なので、画像は左側に表示
+      this.elements.answerRevealImageContainer.classList.add('position-left');
+    }
+
+    // 画像を表示
+    this.elements.answerRevealImageContainer.classList.remove('hidden');
+  }
+
+  /**
+   * 正解発表時の画像を非表示にする
+   */
+  hideAnswerRevealImage() {
+    if (this.elements.answerRevealImageContainer) {
+      this.elements.answerRevealImageContainer.classList.add('hidden');
+    }
   }
 
   showCelebrationScreen() {

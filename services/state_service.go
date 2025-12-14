@@ -331,11 +331,8 @@ func (ss *StateService) GenerateEventSyncData() *websocket.EventSyncData {
 		}
 	}
 
-	// Add team data if in team mode and relevant state
-	if ss.config != nil && ss.config.Event.TeamMode &&
-		(currentState == models.StateTeamAssignment ||
-			currentState == models.StateQuestionActive ||
-			currentState == models.StateResults) {
+	// Add team data if in team mode (always send for all states after team assignment)
+	if ss.config != nil && ss.config.Event.TeamMode {
 		if teams, err := ss.teamRepo.GetAllTeamsWithMembers(); err == nil {
 			teamData := make([]any, len(teams))
 			for i, team := range teams {

@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quiz Screen</title>
     <link rel="stylesheet" href="/css/screen.css">
 </head>
+
 <body>
     <div class="screen-container">
         <header class="screen-header">
@@ -13,7 +15,7 @@
             <div class="question-header hidden" id="question-header">
                 <span class="question-number">Q<span id="current-question-num">1</span></span>
             </div>
-            <div id="header-waiting" class="">🎉 参加受付中</div>
+            <div id="header-waiting" class="hidden">🎉 参加受付中</div>
             <div id="header-final-result" class="hidden">🏆 最終結果</div>
         </header>
 
@@ -41,7 +43,7 @@
                     <h2 id="question-text">問題文がここに表示されます</h2>
                     <img id="question-image" class="question-image" src="" alt="">
                 </div>
-                
+
                 <div class="choices-display" id="choices-display">
                     <!-- 選択肢がここに表示されます -->
                 </div>
@@ -55,13 +57,18 @@
                         <span id="answer-count">0 / 0 回答済み</span>
                     </div>
                 </div> -->
-                
+
+                <!-- 正解発表時の画像表示エリア -->
+                <div id="answer-reveal-image-container" class="answer-reveal-image-container hidden">
+                    <img id="answer-reveal-image" class="answer-reveal-image" src="" alt="正解発表画像">
+                </div>
+
                 <div id="countdown-number" class="countdown-number-display hidden">5</div>
-                
+
                 <div id="time-up-display" class="time-up-display hidden">
                     <div class="time-up-text">終了！</div>
                 </div>
-                
+
                 <div id="countdown-border" class="countdown-border hidden"></div>
             </div>
 
@@ -70,16 +77,19 @@
                     <!-- 表彰台エリア（1-3位） -->
                     <div class="podium-area">
                         <div class="first-place">
-                            <div>🥇 <span id="first-place-team">チーム名</span> (<span id="first-place-score">0</span>点)</div>
+                            <div>🥇 <span id="first-place-team">チーム名</span> (<span id="first-place-score">0</span>点)
+                            </div>
                             <div class="rankings-member-team1" id="rankings-member-team1"></div>
                         </div>
                         <div class="second-third-place">
                             <div class="second-place">
-                                <div>🥈 <span id="second-place-team">チーム名</span> (<span id="second-place-score">0</span>点)</div>
+                                <div>🥈 <span id="second-place-team">チーム名</span> (<span
+                                        id="second-place-score">0</span>点)</div>
                                 <div class="rankings-member-team23" id="rankings-member-team2"></div>
                             </div>
                             <div class="third-place">
-                                <div>🥉 <span id="third-place-team">チーム名</span> (<span id="third-place-score">0</span>点)</div>
+                                <div>🥉 <span id="third-place-team">チーム名</span> (<span id="third-place-score">0</span>点)
+                                </div>
                                 <div class="rankings-member-team23" id="rankings-member-team3"></div>
                             </div>
                         </div>
@@ -110,4 +120,5 @@
     <script src="/js/components/screen_ui.js"></script>
     <script src="/js/screen.js"></script>
 </body>
+
 </html>

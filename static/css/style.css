@@ -562,6 +562,63 @@ input[type="text"]:focus {
     color: #333;
 }
 
+/* Team Rankings Display Styles */
+.team-ranking-item {
+    margin-bottom: 15px;
+    padding: 15px;
+    background: white;
+    border-radius: 10px;
+    border: 1px solid #e1e5e9;
+}
+
+.team-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.team-header .rank {
+    font-weight: 700;
+    color: #667eea;
+    min-width: 50px;
+}
+
+.team-header .team-name {
+    font-weight: 700;
+    color: #333;
+    flex: 1;
+}
+
+.team-header .team-score {
+    font-weight: 600;
+    color: #4CAF50;
+}
+
+.team-members {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.team-member {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #f8f9ff;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.team-member .member-name {
+    font-weight: 500;
+}
+
+.team-member .member-score {
+    color: #666;
+}
+
 @media (max-width: 400px) {
     .team-name-display {
         font-size: 36px;
@@ -569,5 +626,13 @@ input[type="text"]:focus {
 
     .team-label {
         font-size: 16px;
+    }
+
+    .team-header {
+        font-size: 14px;
+    }
+
+    .team-header .rank {
+        min-width: 40px;
     }
 }

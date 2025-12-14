@@ -103,10 +103,10 @@ body {
 .qr-placeholder {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 20px;
-    padding: 40px;
+    /* padding: 40px; */
     margin: 0px auto;
     /* max-width: 500px; */
-    backdrop-filter: blur(10px);
+    /* backdrop-filter: blur(10px); */
 }
 
 .qr-placeholder p {
@@ -123,6 +123,7 @@ body {
     border-radius: 20px;
     padding: 30px;
     backdrop-filter: blur(10px);
+    height: 100%;
 }
 
 .participants-preview h3 {
@@ -135,7 +136,7 @@ body {
     display: flex;
     flex-direction: column-reverse;
     gap: 10px;
-    max-height: calc(100vh - 300px);
+    max-height: 78vh;
     overflow-y: auto;
     padding-right: 10px;
 }
@@ -196,14 +197,15 @@ body {
 }
 
 .question-number {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgb(0, 139, 139);
     padding: 15px 20px;
     border-radius: 50%;
-    margin-right: 15px;
-    font-size: 32px;
+    margin: 15px;
+    font-size: 48px;
     font-weight: 700;
     backdrop-filter: blur(10px);
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    /* border: 3px solid rgba(0, 0, 0, 0.3); */
+    color: white;
 }
 
 .question-content {
@@ -263,7 +265,7 @@ body {
     text-align: center;
 }
 
-.choice-display .choice-count .most-popular {
+.choice-count .most-popular {
     font-weight: 600;
     color: orangered;
     min-width: 150px;
@@ -324,7 +326,7 @@ body {
     width: 100%;
     max-width: 100vw;
     margin: 0;
-    padding: 20px;
+    /* padding: 20px; */
     background: rgba(255, 255, 255, 0.05);
     border-radius: 15px;
     backdrop-filter: blur(10px);
@@ -350,10 +352,9 @@ body {
     align-items: center;
     font-size: 2.5rem;
     font-weight: 700;
-    color: #FFD700;
+    /* color: #FFD700; */
     margin-bottom: 20px;
 }
-
 .second-third-place {
     display: flex;
     flex-direction: row;
@@ -662,7 +663,7 @@ body {
 .team-assignment-display {
     text-align: center;
     width: 100%;
-    max-width: 1200px;
+    /* max-width: 1200px; */
     margin: 0 auto;
 }
 
@@ -679,11 +680,11 @@ body {
 }
 
 .teams-display .team-item {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255);
     border-radius: 15px;
-    padding: 25px;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    /* padding: 25px; */
+    /* backdrop-filter: blur(10px); */
+    border: 3px solid rgba(0, 0, 0, 0.2);
     animation: teamSlideIn 0.6s ease-out;
 }
 
@@ -707,6 +708,8 @@ body {
     /* border-radius: 20px; */
     font-size: 40px;
     font-weight: 500;
+    text-decoration: underline;
+    text-decoration-color: rgba(0, 0, 0, 0.2);
 }
 
 /* Answer Stats and Reveal Styles */
@@ -811,9 +814,9 @@ body {
 /* Team Results Sequential Display Styles */
 .team-results-container {
     width: 100%;
-    max-width: 1200px;
+    /* max-width: 1200px; */
     margin: 0 auto;
-    padding: 20px;
+    /* padding: 20px; */
     display: flex;
     flex-direction: column-reverse;
     gap: 15px;
@@ -830,7 +833,7 @@ body {
     backdrop-filter: blur(10px);
     border: 2px solid rgba(255, 255, 255, 0.3);
     opacity: 0;
-    transform: translateY(-30px);
+    /* transform: translateY(-30px); */
     transition: all 0.8s ease-out;
     margin-bottom: 10px;
 }
@@ -860,14 +863,15 @@ body {
 
 .team-result-item .team-name {
     font-weight: 700;
-    transform: translateY(5px);
-    display: none;
+    /* transform: translateY(25px); */
+    margin-right: 15px;
+    width: 350px;
 }
 
 .team-result-item .team-score {
     font-weight: 600;
-    opacity: 0.9;
-    transform: translateY(5px);
+    /* opacity: 0.9; */
+    /* transform: translateY(10px); */
 }
 
 .team-result-item .team-members {
@@ -878,18 +882,17 @@ body {
 }
 
 .team-result-item .member-name {
-    background: rgba(255, 255, 255, 0.2);
+    /* background: rgba(255, 255, 255, 0.2); */
     padding: 4px 12px;
     border-radius: 8px;
-    font-size: 0.85em;
+    font-size: 30px;
     font-weight: 500;
-    opacity: 0.8;
     transform: translateY(-4px);
 }
 
 /* 順位別文字サイズ */
 .team-result-item.first-place {
-    font-size: 1.5rem; /* 1位：標準の1.5倍 */
+    font-size: 35px; /* 1位：標準の1.5倍 */
     border-color: #FFD700;
     background: rgba(255, 215, 0, 0.2);
     box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
@@ -900,25 +903,27 @@ body {
 .team-result-item.first-place .team-rank {
     background: #FFD700;
     color: #000;
-    font-size: 1.2em;
+    font-size: 4rem;
 }
 
 .team-result-item.podium-place {
-    font-size: 1.2rem; /* 2/3位：標準の1.2倍 */
+    font-size: 30px; /* 2/3位：標準の1.2倍 */
     border-color: #C0C0C0;
 }
 
 .team-result-item.podium-place .team-rank {
     background: rgba(192, 192, 192, 0.8);
     color: #333;
+    font-size: 3rem;
 }
 
 .team-result-item.general-place {
-    font-size: 1rem; /* 4位以下：標準サイズ */
+    font-size: 25px; /* 4位以下：標準サイズ */
 }
 
 .team-result-item.general-place .team-rank {
     background: rgba(255, 255, 255, 0.3);
+    font-size: 2rem;
 }
 
 /* Full Screen Confetti Styles */

@@ -10,14 +10,14 @@
 
 <body>
     <div class="screen-container">
-        <header class="screen-header">
+        <!-- <header class="screen-header hidden-header">
             <h1 id="event-title">クイズ大会</h1>
             <div class="question-header hidden" id="question-header">
                 <span class="question-number">Q<span id="current-question-num">1</span></span>
             </div>
             <div id="header-waiting" class="hidden">🎉 参加受付中</div>
             <div id="header-final-result" class="hidden">🏆 最終結果</div>
-        </header>
+        </header> -->
 
         <main id="main-container" class="screen-content">
             <div id="waiting-screen" class="screen-section">
@@ -39,6 +39,10 @@
             </div>
 
             <div id="question-screen" class="screen-section hidden">
+                <div class="question-header hidden" id="question-header">
+                    <span class="question-number">Q<span id="current-question-num">1</span></span>
+                </div>
+
                 <div class="question-content">
                     <h2 id="question-text">問題文がここに表示されます</h2>
                     <img id="question-image" class="question-image" src="" alt="">

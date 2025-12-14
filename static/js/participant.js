@@ -581,7 +581,7 @@ class QuizParticipant {
       teamHeader.className = 'team-header';
       teamHeader.innerHTML = `
                 <span class="rank">${index + 1}位</span>
-                <!-- <span class="team-name">【${team.name}】</span> -->
+                <span class="team-name">【${team.name}】</span>
                 <span class="team-score">${team.score}点</span>
             `;
       teamItem.appendChild(teamHeader);

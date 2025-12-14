@@ -20,12 +20,12 @@ class QuizScreen {
       connectionStatus: document.getElementById('connection-status'),
       connectionText: document.getElementById('connection-text'),
 
-      eventTitle: document.getElementById('event-title'),
+      // eventTitle: document.getElementById('event-title'),
       // questionStatus: document.getElementById('question-status'),
       // participantCount: document.getElementById('participant-count'),
       questionHeader: document.getElementById('question-header'),
       headerWaiting: document.getElementById('header-waiting'),
-      headerFinalResult: document.getElementById('header-final-result'),
+      // headerFinalResult: document.getElementById('header-final-result'),
 
       waitingScreen: document.getElementById('waiting-screen'),
       questionScreen: document.getElementById('question-screen'),
@@ -52,7 +52,9 @@ class QuizScreen {
       rankingsDisplay: document.getElementById('rankings-display'),
       emojiReactions: document.getElementById('emoji-reactions'),
 
-      answerRevealImageContainer: document.getElementById('answer-reveal-image-container'),
+      answerRevealImageContainer: document.getElementById(
+        'answer-reveal-image-container'
+      ),
       answerRevealImage: document.getElementById('answer-reveal-image'),
     };
 
@@ -66,13 +68,16 @@ class QuizScreen {
   playAudio(audioFileName) {
     try {
       const audio = new Audio(`/audio/${audioFileName}`);
-      audio.play().catch(error => {
+      audio.play().catch((error) => {
         // 音声ファイルが見つからない場合やブラウザが再生を拒否した場合は無視
         console.log(`Audio playback skipped: ${audioFileName}`, error.message);
       });
     } catch (error) {
       // エラーが発生しても無視
-      console.log(`Audio initialization failed: ${audioFileName}`, error.message);
+      console.log(
+        `Audio initialization failed: ${audioFileName}`,
+        error.message
+      );
     }
   }
 
@@ -201,7 +206,7 @@ class QuizScreen {
         break;
 
       case EVENT_STATES.TITLE_DISPLAY:
-        this.showTitleScreen({ title: this.elements.eventTitle.textContent });
+        // this.showTitleScreen({ title: this.elements.eventTitle.textContent });
         break;
 
       case EVENT_STATES.TEAM_ASSIGNMENT:
@@ -335,7 +340,7 @@ class QuizScreen {
 
   handleEventStarted(data) {
     this.currentEvent = data.event;
-    this.elements.eventTitle.textContent = data.title;
+    // this.elements.eventTitle.textContent = data.title;
     this.showWaitingScreen();
   }
 
@@ -346,7 +351,7 @@ class QuizScreen {
     this.elements.timeUpDisplay.classList.add('hidden');
     this.hideAnswerRevealImage();
     this.displayQuestion(data);
-    this.elements.questionHeader.style = '';
+    this.elements.questionHeader.classList.remove('hidden');
     this.showQuestionScreen();
 
     // 問題表示時の音声再生
@@ -359,7 +364,7 @@ class QuizScreen {
 
   handleFinalResults(data) {
     this.elements.questionHeader.classList.add('hidden');
-    this.elements.headerFinalResult.classList.remove('hidden');
+    // this.elements.headerFinalResult.classList.remove('hidden');
 
     this.showResultsScreen();
 
@@ -402,7 +407,7 @@ class QuizScreen {
       const data = await response.json();
 
       if (response.ok) {
-        this.elements.eventTitle.textContent = data.title || '';
+        // this.elements.eventTitle.textContent = data.title || '';
         this.elements.qrcodeImage.src = data.qrcode || '';
       }
     } catch (error) {
@@ -442,7 +447,8 @@ class QuizScreen {
     });
 
     // 新規参加者が追加されたときに最上部にスクロール
-    this.elements.participantsGrid.scrollTop = 0;
+    // this.elements.participantsGrid.scrollTop = 0;
+    this.elements.participantsGrid.scrollTo(0, -1000000);
 
     this.updateAnswerProgress();
   }
@@ -525,16 +531,26 @@ class QuizScreen {
 
     this.elements.choicesDisplay.innerHTML = '';
 
+    // 最も多く選ばれた人数を見つける
+    const maxCount = Math.max(...choicesCounts);
+
     this.currentQuestion.question.choices.forEach((choice, index) => {
       const choiceDiv = document.createElement('div');
       const count = choicesCounts[index] || 0;
       choiceDiv.className = `choice-display choice-with-stats`;
+
+      // 最多回答の選択肢かどうか判定
+      const isMostPopular = count === maxCount && maxCount > 0;
+      const countClass = isMostPopular
+        ? 'choice-count most-popular'
+        : 'choice-count';
+
       choiceDiv.innerHTML = `
                 <span class="choice-letter">${String.fromCharCode(
                   65 + index
                 )}</span>
                 <span class="choice-text">${choice}</span>
-                <span class="choice-count">${count}人</span>
+                <span class="${countClass}">${count}人</span>
             `;
       this.elements.choicesDisplay.appendChild(choiceDiv);
     });
@@ -660,12 +676,13 @@ class QuizScreen {
     // column-reverseにより、appendChildで追加すると視覚的には上に表示される
     container.appendChild(teamElement);
 
-    // results-screenを一番上にスクロール
-    if (this.elements.resultsScreen) {
-      this.elements.resultsScreen.scrollTop = 0;
-    }
+    // // results-screenを一番上にスクロール
+    // if (this.elements.resultsScreen) {
+    //   this.elements.resultsScreen.scrollTop = 0;
+    // }
     // containerも一番上にスクロール
-    container.scrollTop = 0;
+    container.scrollTo(0, -1000000);
+    // container.scrollTop = 0;
 
     // スライドインアニメーションを適用
     setTimeout(() => {
@@ -763,23 +780,23 @@ class QuizScreen {
   }
 
   showTitleScreen(data) {
-    this.hideAllScreens();
-    // Create or show title display screen
-    let titleScreen = document.getElementById('title-screen');
-    if (!titleScreen) {
-      titleScreen = document.createElement('div');
-      titleScreen.id = 'title-screen';
-      titleScreen.className = 'screen-section';
-      titleScreen.innerHTML = `
-                <div class="title-display">
-                    <h1 class="main-title">${data.title}</h1>
-                    <p class="welcome-message"></p>
-                </div>
-            `;
-      document.querySelector('.screen-content').appendChild(titleScreen);
-    }
-    titleScreen.classList.remove('hidden');
-    this.elements.headerWaiting.classList.add('header-waiting');
+    // this.hideAllScreens();
+    // // Create or show title display screen
+    // let titleScreen = document.getElementById('title-screen');
+    // if (!titleScreen) {
+    //   titleScreen = document.createElement('div');
+    //   titleScreen.id = 'title-screen';
+    //   titleScreen.className = 'screen-section';
+    //   titleScreen.innerHTML = `
+    //             <div class="title-display">
+    //                 <h1 class="main-title">${data.title}</h1>
+    //                 <p class="welcome-message"></p>
+    //             </div>
+    //         `;
+    //   document.querySelector('.screen-content').appendChild(titleScreen);
+    // }
+    // titleScreen.classList.remove('hidden');
+    // this.elements.headerWaiting.classList.add('header-waiting');
   }
 
   showTeamAssignmentScreen(teams) {
@@ -792,7 +809,7 @@ class QuizScreen {
       teamScreen.className = 'screen-section';
       teamScreen.innerHTML = `
                 <div class="team-assignment-display">
-                    <h2>🏆 チーム発表</h2>
+                    <!-- <h2>🏆 チーム発表</h2> -->
                     <div id="team-assignment-list" class="teams-display">
                         <!-- チーム一覧がここに表示されます -->
                     </div>
@@ -883,7 +900,10 @@ class QuizScreen {
     const correctIndexZeroBased = correctIndex - 1; // Convert to 0-based
     const isCorrectOnLeft = correctIndexZeroBased % 2 === 0;
 
-    this.elements.answerRevealImageContainer.classList.remove('position-left', 'position-right');
+    this.elements.answerRevealImageContainer.classList.remove(
+      'position-left',
+      'position-right'
+    );
     if (isCorrectOnLeft) {
       // 正解が左側なので、画像は右側に表示
       this.elements.answerRevealImageContainer.classList.add('position-right');
@@ -1107,7 +1127,7 @@ class QuizScreen {
 
       case EVENT_STATES.TITLE_DISPLAY:
         this.handleTitleDisplay({
-          title: this.elements.eventTitle.textContent,
+          // title: this.elements.eventTitle.textContent,
         });
         break;
 

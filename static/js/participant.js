@@ -508,15 +508,15 @@ class QuizParticipant {
     this.hideAllSections();
     this.elements.resultsSection.classList.remove('hidden');
 
-    if (resultsData.team_mode && resultsData.teams) {
-      // チーム戦の場合はチーム結果のみ表示
-      // this.elements.finalScore.textContent = `チーム戦結果`;
-      this.renderTeamRankings(resultsData.teams);
-    } else {
-      // 個人戦の場合は従来通り
-      // this.elements.finalScore.textContent = `あなたのスコア: ${this.user.score}点`;
-      this.renderRankings(resultsData.results);
-    }
+    // if (resultsData.team_mode && resultsData.teams) {
+    //   // チーム戦の場合はチーム結果のみ表示
+    //   // this.elements.finalScore.textContent = `チーム戦結果`;
+    //   this.renderTeamRankings(resultsData.teams);
+    // } else {
+    //   // 個人戦の場合は従来通り
+    //   // this.elements.finalScore.textContent = `あなたのスコア: ${this.user.score}点`;
+    //   this.renderRankings(resultsData.results);
+    // }
   }
 
   renderRankings(results) {

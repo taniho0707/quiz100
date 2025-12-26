@@ -651,7 +651,7 @@ class QuizScreen {
     // 順位に応じたクラスを追加
     if (rank === 1) {
       teamElement.classList.add('first-place');
-    } else if (rank === 2 || rank === 3) {
+    } else if (rank === 2 || rank === 3 || rank === 4 || rank === 5) {
       teamElement.classList.add('podium-place');
     } else {
       teamElement.classList.add('general-place');
@@ -690,7 +690,7 @@ class QuizScreen {
     }, 50);
 
     // 次のチームの表示間隔を設定
-    const delay = rank <= 3 ? 3000 : 1000; // 3位以上は3秒、4位以下は1秒
+    const delay = rank <= 6 ? 4000 : 1500; // 3位以上は3秒、4位以下は1秒
 
     setTimeout(() => {
       this.displayTeamsSequentially(teams, container, index + 1);

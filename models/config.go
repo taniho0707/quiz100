@@ -119,11 +119,11 @@ func (q *Question) Validate() error {
 		return errors.New("image path is required for image type questions")
 	}
 
-	if len(q.Choices) < 2 {
-		return errors.New("at least 2 choices are required")
+	if len(q.Choices) != 4 {
+		return errors.New("exactly 4 choices are required")
 	}
 
-	if q.Correct < 0 || q.Correct >= len(q.Choices) {
+	if q.Correct < 1 || q.Correct > len(q.Choices) {
 		return errors.New("correct answer index is out of range")
 	}
 

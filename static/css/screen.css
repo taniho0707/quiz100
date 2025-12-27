@@ -866,12 +866,15 @@ body {
     /* transform: translateY(25px); */
     margin-right: 15px;
     width: 350px;
+    align-content: center;
 }
 
 .team-result-item .team-score {
     font-weight: 600;
     /* opacity: 0.9; */
     /* transform: translateY(10px); */
+    width: 80px;
+    align-content: center;
 }
 
 .team-result-item .team-members {

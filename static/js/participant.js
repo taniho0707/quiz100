@@ -348,7 +348,7 @@ class QuizParticipant {
     this.hideAllSections();
     this.elements.questionSection.classList.remove('hidden');
 
-    this.elements.currentQuestionNum.textContent = questionNumber;
+    this.elements.currentQuestionNum.textContent = questionNumber - 1; // FIXME: 0問目スタートのための暫定対応
     // this.elements.totalQuestions.textContent = questionData.total_questions;
     this.elements.questionText.textContent = questionData.text;
 

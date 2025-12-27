@@ -16,10 +16,12 @@ import (
 )
 
 const (
-	TotalUsers     = 80
+	TotalUsers = 80
+	// ServerURL      = "http://20.89.211.82"
+	// WebSocketURL   = "ws://20.89.211.82"
 	ServerURL      = "http://localhost:8080"
 	WebSocketURL   = "ws://localhost:8080"
-	TotalQuestions = 14 // クイズの総問題数
+	TotalQuestions = 11 // クイズの総問題数
 )
 
 // AnswerPattern は各ユーザーの回答パターンを定義
@@ -28,15 +30,11 @@ type AnswerPattern string
 const (
 	AllCorrect      AnswerPattern = "all_correct"       // 全問正解
 	AllWrong        AnswerPattern = "all_wrong"         // 全問不正解
-	OnlyQuestion1   AnswerPattern = "only_q1"           // 1問目だけ正解
-	OnlyQuestion2   AnswerPattern = "only_q2"           // 2問目だけ正解
-	OnlyQuestion3   AnswerPattern = "only_q3"           // 3問目だけ正解
-	OnlyQuestion4   AnswerPattern = "only_q4"           // 4問目だけ正解
-	OnlyQuestion5   AnswerPattern = "only_q5"           // 5問目だけ正解
+	OnlyQuestion1   AnswerPattern = "only_q1"           // 全て選択肢1
+	OnlyQuestion2   AnswerPattern = "only_q2"           // 全て選択肢2
+	OnlyQuestion3   AnswerPattern = "only_q3"           // 全て選択肢3
+	OnlyQuestion4   AnswerPattern = "only_q4"           // 全て選択肢4
 	AnswerOnlyFirst AnswerPattern = "answer_only_first" // 1問目だけ回答（以降回答しない）
-	SkipFirst       AnswerPattern = "skip_first"        // 1問目スキップ、2問目以降正解
-	ChangeAnswer    AnswerPattern = "change_answer"     // 回答を変更する（最初は不正解を選び、1秒後に正解に変更）
-	Random          AnswerPattern = "random"            // ランダムに回答
 )
 
 // UserProfile はユーザーのプロファイル
@@ -81,19 +79,16 @@ func NewSequenceLoadTester() *SequenceLoadTester {
 func generateQuestions() []Question {
 	questions := []Question{
 		{Number: 1, Correct: 1, Point: 0},
-		{Number: 2, Correct: 2, Point: 1},
-		{Number: 3, Correct: 3, Point: 1},
-		{Number: 4, Correct: 3, Point: 1},
-		{Number: 5, Correct: 1, Point: 1},
-		{Number: 6, Correct: 1, Point: 1},
-		{Number: 7, Correct: 1, Point: 1},
+		{Number: 2, Correct: 3, Point: 1},
+		{Number: 3, Correct: 2, Point: 1},
+		{Number: 4, Correct: 1, Point: 1},
+		{Number: 5, Correct: 2, Point: 1},
+		{Number: 6, Correct: 4, Point: 1},
+		{Number: 7, Correct: 2, Point: 1},
 		{Number: 8, Correct: 1, Point: 1},
-		{Number: 9, Correct: 1, Point: 1},
+		{Number: 9, Correct: 4, Point: 1},
 		{Number: 10, Correct: 1, Point: 1},
-		{Number: 11, Correct: 1, Point: 1},
-		{Number: 12, Correct: 1, Point: 1},
-		{Number: 13, Correct: 1, Point: 1},
-		{Number: 14, Correct: 1, Point: 2},
+		{Number: 11, Correct: 2, Point: 2},
 	}
 	return questions
 }
@@ -102,8 +97,8 @@ func generateQuestions() []Question {
 func (slt *SequenceLoadTester) generateUserProfiles() {
 	patterns := []AnswerPattern{
 		AllCorrect, AllWrong,
-		OnlyQuestion1, OnlyQuestion2, OnlyQuestion3, OnlyQuestion4, OnlyQuestion5,
-		AnswerOnlyFirst, SkipFirst, ChangeAnswer, Random,
+		OnlyQuestion1, OnlyQuestion2, OnlyQuestion3, OnlyQuestion4,
+		AnswerOnlyFirst,
 	}
 
 	// 各パターンを均等に割り当て
@@ -111,7 +106,7 @@ func (slt *SequenceLoadTester) generateUserProfiles() {
 		pattern := patterns[i%len(patterns)]
 		user := &UserProfile{
 			ID:       i + 1,
-			Nickname: fmt.Sprintf("User%03d", i+1),
+			Nickname: fmt.Sprintf("U%2d %v", i+1, pattern),
 			Pattern:  pattern,
 			Answers:  make(map[int]int),
 		}
@@ -129,31 +124,24 @@ func (slt *SequenceLoadTester) generateUserProfiles() {
 func (slt *SequenceLoadTester) calculateExpectedScore(pattern AnswerPattern) int {
 	score := 0
 	switch pattern {
-	case AllCorrect, ChangeAnswer:
+	case AllCorrect:
 		// 全問正解
 		for _, q := range slt.Questions {
 			score += q.Point
 		}
-	case AllWrong, Random:
+	case AllWrong:
 		// 全問不正解またはランダム（期待値0）
 		score = 0
-	case OnlyQuestion1:
-		score = slt.Questions[0].Point
+	case OnlyQuestion1: // 以下ハードコード
+		score = 3
 	case OnlyQuestion2:
-		score = slt.Questions[1].Point
+		score = 5
 	case OnlyQuestion3:
-		score = slt.Questions[2].Point
+		score = 1
 	case OnlyQuestion4:
-		score = slt.Questions[3].Point
-	case OnlyQuestion5:
-		score = slt.Questions[4].Point
+		score = 2
 	case AnswerOnlyFirst:
 		score = slt.Questions[0].Point
-	case SkipFirst:
-		// 1問目以外全正解
-		for i := 1; i < len(slt.Questions); i++ {
-			score += slt.Questions[i].Point
-		}
 	}
 	return score
 }
@@ -397,19 +385,6 @@ func (slt *SequenceLoadTester) submitUserAnswer(user *UserProfile, questionNumbe
 		return
 	}
 
-	// 回答変更パターンの場合、最初に間違った回答を送信
-	if user.Pattern == ChangeAnswer {
-		wrongAnswer := answerIndex
-		if wrongAnswer == 1 {
-			wrongAnswer = 2
-		} else {
-			wrongAnswer = 1
-		}
-
-		slt.sendAnswer(user, questionNumber, wrongAnswer)
-		time.Sleep(1 * time.Second) // 1秒待機
-	}
-
 	// 正しい回答（またはパターンに応じた回答）を送信
 	slt.sendAnswer(user, questionNumber, answerIndex)
 	user.Answers[questionNumber] = answerIndex
@@ -420,7 +395,7 @@ func (slt *SequenceLoadTester) determineAnswer(user *UserProfile, questionNumber
 	question := slt.Questions[questionNumber-1]
 
 	switch user.Pattern {
-	case AllCorrect, ChangeAnswer:
+	case AllCorrect:
 		return question.Correct
 	case AllWrong:
 		// 不正解を返す
@@ -430,42 +405,18 @@ func (slt *SequenceLoadTester) determineAnswer(user *UserProfile, questionNumber
 		}
 		return wrongAnswer
 	case OnlyQuestion1:
-		if questionNumber == 1 {
-			return question.Correct
-		}
-		return 0 // 回答しない
+		return 1
 	case OnlyQuestion2:
-		if questionNumber == 2 {
-			return question.Correct
-		}
-		return 0
+		return 2
 	case OnlyQuestion3:
-		if questionNumber == 3 {
-			return question.Correct
-		}
-		return 0
+		return 3
 	case OnlyQuestion4:
-		if questionNumber == 4 {
-			return question.Correct
-		}
-		return 0
-	case OnlyQuestion5:
-		if questionNumber == 5 {
-			return question.Correct
-		}
-		return 0
+		return 4
 	case AnswerOnlyFirst:
 		if questionNumber == 1 {
 			return question.Correct
 		}
 		return 0 // 以降は回答しない
-	case SkipFirst:
-		if questionNumber == 1 {
-			return 0 // 1問目はスキップ
-		}
-		return question.Correct
-	case Random:
-		return rand.Intn(4) + 1 // 1-4のランダム
 	default:
 		return question.Correct
 	}

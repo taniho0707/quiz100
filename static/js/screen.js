@@ -498,7 +498,8 @@ class QuizScreen {
   displayQuestion(questionData) {
     const question = questionData.question;
 
-    this.elements.currentQuestionNum.textContent = questionData.question_number;
+    this.elements.currentQuestionNum.textContent =
+      questionData.question_number - 1; // FIXME: 0問目スタートのための暫定対応
     this.elements.questionText.textContent = question.text;
 
     // 問題出題中は画像を表示しない（正答発表後のみ表示）
